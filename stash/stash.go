@@ -81,9 +81,7 @@ func (d *Decoder) ReadBool() bool {
 	d.cursor += 1
 	// FIXME: consolidate with `DecodeEx`
 	n := byte(uint32(b) ^ d.key)
-	fmt.Printf("n == %d\n", n)
 	d.key ^= d.keyTable[b]
-	fmt.Printf("new key == %d\n", d.key)
 	return n == 1
 }
 
@@ -123,4 +121,24 @@ func (d *Decoder) ReadString() (error, string) {
 	}
 
 	return nil, "FIXME: string parsing not fully implemented yet"
+}
+
+type StashTab struct {
+	items         uint32
+	width, height uint32
+	block         Block
+}
+
+func (d *Decoder) ReadStashTab() StashTab {
+	fmt.Printf("   starting to read stash tab; cursor %d\n", d.cursor)
+	block := d.ReadBlock()
+	width := d.ReadUInt()
+	height := d.ReadUInt()
+	itemCount := d.ReadUInt()
+	fmt.Printf("   got stash tab block %d with %d items, cursor %d\n", block, itemCount, d.cursor)
+	fmt.Printf("       width %d,  height %d\n", width, height)
+	// FIXME: parse items instead of jumping right to the block end
+	d.cursor = block.end
+	d.ReadBlockEnd(block)
+	return StashTab{itemCount, width, height, block}
 }

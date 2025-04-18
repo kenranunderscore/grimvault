@@ -17,17 +17,14 @@ func TestDecodeEmptyStashFile(t *testing.T) {
 		t.Errorf("got: %d\n", next)
 	}
 
-	block := d.ReadBlock()
-	fmt.Printf("block: %d\n", block)
-	if block.result != 18 {
-		t.Errorf("block got: %d\n", block.result)
+	mainBlock := d.ReadBlock()
+	fmt.Printf("block: %d\n", mainBlock)
+	if mainBlock.result != 18 {
+		t.Errorf("block got: %d\n", mainBlock.result)
 	}
 
 	version := d.ReadUInt()
 	fmt.Printf("version: %d\n", version)
-	if version > 5 {
-		t.Errorf("version: got: %d\n", version)
-	}
 
 	zero := d.ReadUIntEx(false)
 	if zero != 0 {
@@ -36,13 +33,25 @@ func TestDecodeEmptyStashFile(t *testing.T) {
 
 	_, _ = d.ReadString()
 
-	isExpansion := d.ReadBool()
-	fmt.Printf("expansion: %t\n", isExpansion)
+	if version >= 5 {
+		isExpansion := d.ReadBool()
+		fmt.Printf("expansion: %t\n", isExpansion)
+	}
 
 	ntabs := d.ReadUInt()
 	fmt.Printf("ntabs: %d\n", ntabs)
 
-	err = d.ReadBlockEnd(block)
+	var tabs []StashTab
+	for range ntabs {
+		tab := d.ReadStashTab()
+		tabs = append(tabs, tab)
+	}
+
+	err = d.ReadBlockEnd(mainBlock)
+	if err != nil {
+		t.Error(err)
+	}
+}
 	if err != nil {
 		t.Error(err)
 	}
