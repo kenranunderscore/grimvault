@@ -2,7 +2,10 @@ package stash
 
 import (
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"os"
+	"strconv"
 )
 
 const TableLength = 256
@@ -73,15 +76,51 @@ func (d *Decoder) ReadUInt() uint32 {
 	return d.ReadUIntEx(true)
 }
 
+func (d *Decoder) ReadBool() bool {
+	b := (*d.data)[d.cursor : d.cursor+1][0]
+	d.cursor += 1
+	// FIXME: consolidate with `DecodeEx`
+	n := byte(uint32(b) ^ d.key)
+	fmt.Printf("n == %d\n", n)
+	d.key ^= d.keyTable[b]
+	fmt.Printf("new key == %d\n", d.key)
+	return n == 1
+}
+
 type Block struct {
 	result uint32
 	length uint32
 	end    uint
 }
 
-func (d *Decoder) ReadBlockStart() Block {
+func (d *Decoder) ReadBlock() Block {
 	result := d.ReadUInt()
 	length := d.ReadUIntEx(false)
 	end := d.cursor + uint(length)
 	return Block{result, length, end}
+}
+
+func (d *Decoder) ReadBlockEnd(block Block) error {
+	if block.end != d.cursor {
+		return errors.New("unexpected cursor position when reading block end")
+	}
+
+	res := d.ReadUIntEx(false)
+	if res > 0 {
+		return errors.New("block end > 0: " + strconv.FormatUint(uint64(res), 10))
+	}
+	return nil
+}
+
+func (d *Decoder) ReadString() (error, string) {
+	length := d.ReadUInt()
+	if length == 0 {
+		return nil, ""
+	}
+
+	if d.cursor+uint(length) > uint(len(*d.data)) {
+		return errors.New("too little data"), ""
+	}
+
+	return nil, "FIXME: string parsing not fully implemented yet"
 }
