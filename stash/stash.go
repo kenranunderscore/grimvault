@@ -8,9 +8,9 @@ import (
 const TableLength = 256
 
 type Decoder struct {
-	data *[]byte
-	cursor uint
-	key uint32
+	data     *[]byte
+	cursor   uint
+	key      uint32
 	keyTable *[TableLength]uint32
 }
 
@@ -46,19 +46,42 @@ func NewDecoder(path string) (*Decoder, error) {
 	return &Decoder{&bytes, 4, key, &keyTable}, nil
 }
 
-func (d *Decoder) Decode(encoded uint32) uint32 {
+func (d *Decoder) DecodeEx(encoded uint32, updateKey bool) uint32 {
 	n := encoded ^ d.key
-	bytes := make([]byte, 4)
-	binary.LittleEndian.PutUint32(bytes, encoded)
-	for b := range bytes {
-		d.key ^= d.keyTable[b]
+	if updateKey {
+		bytes := make([]byte, 4)
+		binary.LittleEndian.PutUint32(bytes, encoded)
+		for _, b := range bytes {
+			d.key ^= d.keyTable[b]
+		}
 	}
 	return n
 }
 
-func (d *Decoder) ReadUInt() uint32 {
+func (d *Decoder) Decode(encoded uint32) uint32 {
+	return d.DecodeEx(encoded, true)
+}
+
+func (d *Decoder) ReadUIntEx(updateKey bool) uint32 {
 	bytes := (*d.data)[d.cursor : d.cursor+4]
 	d.cursor += 4
 	encoded := binary.LittleEndian.Uint32(bytes)
-	return d.Decode(encoded)
+	return d.DecodeEx(encoded, updateKey)
+}
+
+func (d *Decoder) ReadUInt() uint32 {
+	return d.ReadUIntEx(true)
+}
+
+type Block struct {
+	result uint32
+	length uint32
+	end    uint
+}
+
+func (d *Decoder) ReadBlockStart() Block {
+	result := d.ReadUInt()
+	length := d.ReadUIntEx(false)
+	end := d.cursor + uint(length)
+	return Block{result, length, end}
 }
