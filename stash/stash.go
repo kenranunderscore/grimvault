@@ -12,7 +12,7 @@ const TableLength = 256
 
 type Decoder struct {
 	data     *[]byte
-	cursor   uint
+	cursor   uint32
 	key      uint32
 	keyTable *[TableLength]uint32
 }
@@ -66,8 +66,7 @@ func (d *Decoder) Decode(encoded uint32) uint32 {
 }
 
 func (d *Decoder) ReadUIntEx(updateKey bool) uint32 {
-	bytes := (*d.data)[d.cursor : d.cursor+4]
-	d.cursor += 4
+	bytes := d.getBytes(4)
 	encoded := binary.LittleEndian.Uint32(bytes)
 	return d.DecodeEx(encoded, updateKey)
 }
@@ -77,8 +76,7 @@ func (d *Decoder) ReadUInt() uint32 {
 }
 
 func (d *Decoder) ReadBool() bool {
-	b := (*d.data)[d.cursor : d.cursor+1][0]
-	d.cursor += 1
+	b := d.getBytes(1)[0]
 	// FIXME: consolidate with `DecodeEx`
 	n := byte(uint32(b) ^ d.key)
 	d.key ^= d.keyTable[b]
@@ -88,13 +86,13 @@ func (d *Decoder) ReadBool() bool {
 type Block struct {
 	result uint32
 	length uint32
-	end    uint
+	end    uint32
 }
 
 func (d *Decoder) ReadBlock() Block {
 	result := d.ReadUInt()
 	length := d.ReadUIntEx(false)
-	end := d.cursor + uint(length)
+	end := d.cursor + length
 	return Block{result, length, end}
 }
 
@@ -110,17 +108,33 @@ func (d *Decoder) ReadBlockEnd(block Block) error {
 	return nil
 }
 
+func (d *Decoder) getBytes(count uint32) []byte {
+	res := (*d.data)[d.cursor : d.cursor + count]
+	d.cursor += count
+	return res
+}
+
 func (d *Decoder) ReadString() (error, string) {
 	length := d.ReadUInt()
 	if length == 0 {
 		return nil, ""
 	}
 
-	if d.cursor+uint(length) > uint(len(*d.data)) {
+	if d.cursor + length > uint32(len(*d.data)) {
 		return errors.New("too little data"), ""
 	}
 
-	return nil, "FIXME: string parsing not fully implemented yet"
+	// FIXME: consolidate
+	// FIXME: decodeBytes instead?
+	bytes := d.getBytes(length)
+	for i := range length {
+		b := bytes[i]
+		decoded := byte(uint32(b) ^ d.key)
+		d.key ^= d.keyTable[b]
+		bytes[i] = decoded
+	}
+
+	return nil, string(bytes)
 }
 
 type StashTab struct {
@@ -129,7 +143,7 @@ type StashTab struct {
 	block         Block
 }
 
-func (d *Decoder) ReadStashTab() StashTab {
+func (d *Decoder) ReadStashTab() (error, *StashTab) {
 	fmt.Printf("   starting to read stash tab; cursor %d\n", d.cursor)
 	block := d.ReadBlock()
 	width := d.ReadUInt()
@@ -137,8 +151,50 @@ func (d *Decoder) ReadStashTab() StashTab {
 	itemCount := d.ReadUInt()
 	fmt.Printf("   got stash tab block %d with %d items, cursor %d\n", block, itemCount, d.cursor)
 	fmt.Printf("       width %d,  height %d\n", width, height)
-	// FIXME: parse items instead of jumping right to the block end
-	d.cursor = block.end
+	for range itemCount {
+		err := d.ReadItem()
+		if err != nil {
+			return err, nil
+		}
+	}
 	d.ReadBlockEnd(block)
-	return StashTab{itemCount, width, height, block}
+	return nil, &StashTab{itemCount, width, height, block}
+}
+
+func (d *Decoder) ReadItem() error {
+	err, base := d.ReadString()
+	fmt.Printf("  base: %s\n", base)
+	err, prefix := d.ReadString()
+	fmt.Printf("  prefix: %s\n", prefix)
+	err, suffix := d.ReadString()
+	fmt.Printf("  suffix: %s\n", suffix)
+	err, modifier := d.ReadString()
+	fmt.Printf("  modifier: %s\n", modifier)
+	err, transmute := d.ReadString()
+	fmt.Printf("  transmute: %s\n", transmute)
+	seed := d.ReadUInt()
+	fmt.Printf("  seed: %d\n", seed)
+	err, material := d.ReadString()
+	fmt.Printf("  material: %s\n", material)
+	err, relicCompletionBonus := d.ReadString()
+	fmt.Printf("  completion bonus: %s\n", relicCompletionBonus)
+	relicSeed := d.ReadUInt()
+	fmt.Printf("  relic seed: %d\n", relicSeed)
+	err, enchantment := d.ReadString()
+	fmt.Printf("  enchantment: %s\n", enchantment)
+	_ = d.ReadUInt()
+	enchantmentSeed := d.ReadUInt()
+	fmt.Printf("  enchantment seed: %d\n", enchantmentSeed)
+	materialCombines := d.ReadUInt()
+	fmt.Printf("  material combines: %d\n", materialCombines)
+	stackSize := d.ReadUInt()
+	fmt.Printf("  stack size: %d\n", stackSize)
+	xpos := d.ReadUInt()
+	ypos := d.ReadUInt()
+	fmt.Printf("  pos: (%d, %d)\n", xpos, ypos)
+
+	if err != nil {
+		return err
+	}
+	return nil
 }
