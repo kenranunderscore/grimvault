@@ -65,14 +65,14 @@ func (d *Decoder) Decode(encoded uint32) uint32 {
 	return d.DecodeEx(encoded, true)
 }
 
-func (d *Decoder) ReadUIntEx(updateKey bool) uint32 {
+func (d *Decoder) ReadUintEx(updateKey bool) uint32 {
 	bytes := d.getBytes(4)
 	encoded := binary.LittleEndian.Uint32(bytes)
 	return d.DecodeEx(encoded, updateKey)
 }
 
-func (d *Decoder) ReadUInt() uint32 {
-	return d.ReadUIntEx(true)
+func (d *Decoder) ReadUint() uint32 {
+	return d.ReadUintEx(true)
 }
 
 func (d *Decoder) ReadBool() bool {
@@ -90,8 +90,8 @@ type Block struct {
 }
 
 func (d *Decoder) ReadBlock() Block {
-	result := d.ReadUInt()
-	length := d.ReadUIntEx(false)
+	result := d.ReadUint()
+	length := d.ReadUintEx(false)
 	end := d.cursor + length
 	return Block{result, length, end}
 }
@@ -101,7 +101,7 @@ func (d *Decoder) ReadBlockEnd(block Block) error {
 		return errors.New("unexpected cursor position when reading block end")
 	}
 
-	res := d.ReadUIntEx(false)
+	res := d.ReadUintEx(false)
 	if res > 0 {
 		return errors.New("block end > 0: " + strconv.FormatUint(uint64(res), 10))
 	}
@@ -109,18 +109,18 @@ func (d *Decoder) ReadBlockEnd(block Block) error {
 }
 
 func (d *Decoder) getBytes(count uint32) []byte {
-	res := (*d.data)[d.cursor : d.cursor + count]
+	res := (*d.data)[d.cursor : d.cursor+count]
 	d.cursor += count
 	return res
 }
 
 func (d *Decoder) ReadString() (error, string) {
-	length := d.ReadUInt()
+	length := d.ReadUint()
 	if length == 0 {
 		return nil, ""
 	}
 
-	if d.cursor + length > uint32(len(*d.data)) {
+	if d.cursor+length > uint32(len(*d.data)) {
 		return errors.New("too little data"), ""
 	}
 
@@ -146,9 +146,9 @@ type StashTab struct {
 func (d *Decoder) ReadStashTab() (error, *StashTab) {
 	fmt.Printf("   starting to read stash tab; cursor %d\n", d.cursor)
 	block := d.ReadBlock()
-	width := d.ReadUInt()
-	height := d.ReadUInt()
-	itemCount := d.ReadUInt()
+	width := d.ReadUint()
+	height := d.ReadUint()
+	itemCount := d.ReadUint()
 	fmt.Printf("   got stash tab block %d with %d items, cursor %d\n", block, itemCount, d.cursor)
 	fmt.Printf("       width %d,  height %d\n", width, height)
 	for range itemCount {
@@ -172,25 +172,25 @@ func (d *Decoder) ReadItem() error {
 	fmt.Printf("  modifier: %s\n", modifier)
 	err, transmute := d.ReadString()
 	fmt.Printf("  transmute: %s\n", transmute)
-	seed := d.ReadUInt()
+	seed := d.ReadUint()
 	fmt.Printf("  seed: %d\n", seed)
 	err, material := d.ReadString()
 	fmt.Printf("  material: %s\n", material)
 	err, relicCompletionBonus := d.ReadString()
 	fmt.Printf("  completion bonus: %s\n", relicCompletionBonus)
-	relicSeed := d.ReadUInt()
+	relicSeed := d.ReadUint()
 	fmt.Printf("  relic seed: %d\n", relicSeed)
 	err, enchantment := d.ReadString()
 	fmt.Printf("  enchantment: %s\n", enchantment)
-	_ = d.ReadUInt()
-	enchantmentSeed := d.ReadUInt()
+	_ = d.ReadUint()
+	enchantmentSeed := d.ReadUint()
 	fmt.Printf("  enchantment seed: %d\n", enchantmentSeed)
-	materialCombines := d.ReadUInt()
+	materialCombines := d.ReadUint()
 	fmt.Printf("  material combines: %d\n", materialCombines)
-	stackSize := d.ReadUInt()
+	stackSize := d.ReadUint()
 	fmt.Printf("  stack size: %d\n", stackSize)
-	xpos := d.ReadUInt()
-	ypos := d.ReadUInt()
+	xpos := d.ReadUint()
+	ypos := d.ReadUint()
 	fmt.Printf("  pos: (%d, %d)\n", xpos, ypos)
 
 	if err != nil {

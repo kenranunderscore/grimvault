@@ -12,7 +12,7 @@ func TestDecodeEmptyStashFile(t *testing.T) {
 		t.Errorf("Decoder could not be created: %d\n", err)
 	}
 
-	next := d.ReadUInt()
+	next := d.ReadUint()
 	if next != 2 {
 		t.Errorf("got: %d\n", next)
 	}
@@ -23,10 +23,10 @@ func TestDecodeEmptyStashFile(t *testing.T) {
 		t.Errorf("block got: %d\n", mainBlock.result)
 	}
 
-	version := d.ReadUInt()
+	version := d.ReadUint()
 	fmt.Printf("version: %d\n", version)
 
-	zero := d.ReadUIntEx(false)
+	zero := d.ReadUintEx(false)
 	if zero != 0 {
 		t.Errorf("zero: got: %d\n", zero)
 	}
@@ -38,7 +38,7 @@ func TestDecodeEmptyStashFile(t *testing.T) {
 		fmt.Printf("expansion: %t\n", isExpansion)
 	}
 
-	ntabs := d.ReadUInt()
+	ntabs := d.ReadUint()
 	fmt.Printf("ntabs: %d\n", ntabs)
 
 	var tabs []StashTab
@@ -63,7 +63,7 @@ func TestDecodeNonEmptyStashFile(t *testing.T) {
 		t.Errorf("Decoder could not be created: %d\n", err)
 	}
 
-	next := d.ReadUInt()
+	next := d.ReadUint()
 	if next != 2 {
 		t.Errorf("got: %d\n", next)
 	}
@@ -74,10 +74,10 @@ func TestDecodeNonEmptyStashFile(t *testing.T) {
 		t.Errorf("block got: %d\n", mainBlock.result)
 	}
 
-	version := d.ReadUInt()
+	version := d.ReadUint()
 	fmt.Printf("version: %d\n", version)
 
-	zero := d.ReadUIntEx(false)
+	zero := d.ReadUintEx(false)
 	if zero != 0 {
 		t.Errorf("zero: got: %d\n", zero)
 	}
@@ -89,7 +89,7 @@ func TestDecodeNonEmptyStashFile(t *testing.T) {
 		fmt.Printf("expansion: %t\n", isExpansion)
 	}
 
-	ntabs := d.ReadUInt()
+	ntabs := d.ReadUint()
 	fmt.Printf("ntabs: %d\n", ntabs)
 
 	var tabs []StashTab

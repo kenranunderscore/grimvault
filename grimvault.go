@@ -11,5 +11,5 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Printf("The stash: %d\n", decoder.ReadUInt())
+	fmt.Printf("The stash: %d\n", decoder.ReadUint())
 }
