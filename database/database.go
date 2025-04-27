@@ -122,21 +122,29 @@ type entry struct {
 }
 
 func getUint16(r *bytes.Reader) (uint16, error) {
-	var n uint16
-	err := binary.Read(r, binary.LittleEndian, &n)
-	return n, err
+	var buf [2]byte
+	_, err := r.Read(buf[:])
+	if err != nil {
+		return 0, err
+	}
+	return binary.LittleEndian.Uint16(buf[:]), nil
 }
 
 func getUint32(r *bytes.Reader) (uint32, error) {
-	var n uint32
-	err := binary.Read(r, binary.LittleEndian, &n)
-	return n, err
+	var buf [4]byte
+	_, err := r.Read(buf[:])
+	if err != nil {
+		return 0, err
+	}
+	return binary.LittleEndian.Uint32(buf[:]), nil
 }
 
 func getFloat32(r *bytes.Reader) (float32, error) {
-	var n float32
-	err := binary.Read(r, binary.LittleEndian, &n)
-	return n, err
+	n, err := getUint32(r)
+	if err != nil {
+		return 0, err
+	}
+	return math.Float32frombits(n), nil
 }
 
 // FIXME: pass a pointer and benchmark to get a feel for go's performance
