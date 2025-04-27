@@ -1,10 +1,13 @@
 package database
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/pierrec/lz4"
+	"math"
 	"os"
+
+	"github.com/pierrec/lz4"
 )
 
 // FIXME: try bytes.NewReader: does that replace it?
@@ -42,13 +45,14 @@ func (r *reader) readString() string {
 	length := r.readUint32()
 	remaining := uint32(len(*r.data)) - r.cursor
 	if length > remaining || length > 10*1024 {
-		// fmt.Printf("  encountered strange length: %d, remaining: %d\n", length, remaining)
 		return ""
 	}
 	return string(r.getBytes(length))
 }
 
-func (r *reader) getStringTable(start uint32, byteCount uint32) []string {
+type stringTable []string
+
+func (r *reader) getStringTable(start uint32, byteCount uint32) stringTable {
 	end := start + byteCount
 	var strings []string
 	r.cursor = start
@@ -89,24 +93,115 @@ func (r *reader) readRecordMetas(start uint32, count uint32) []recordMeta {
 	return metas
 }
 
-type itemDeclaration struct {
-	typ  string
+type uncompressedRecord struct {
+	typ         string
 	stringIndex uint32
-	data []byte
+	data        []byte
 }
 
-func (r *reader) readItemDeclaration(meta recordMeta) (itemDeclaration, error) {
+func (r *reader) readRecord(meta recordMeta) (uncompressedRecord, error) {
 	r.cursor = meta.pos + 24
 	compressed := r.getBytes(meta.compressedSize)
 	uncompressed := make([]byte, meta.uncompressedSize)
 	_, err := lz4.UncompressBlock(compressed, uncompressed)
 	if err != nil {
-		return itemDeclaration{}, err
+		return uncompressedRecord{}, err
 	}
-	return itemDeclaration{meta.name, meta.stringIndex, uncompressed}, nil
+	return uncompressedRecord{meta.name, meta.stringIndex, uncompressed}, nil
 }
 
-func GetItemDeclarations(file string) ([]itemDeclaration, error) {
+type stat struct {
+	name string
+	// FIXME: go has no sum types, so what's the idiom here?
+	value any
+}
+
+type entry struct {
+	key   string
+	stats []stat
+}
+
+func getUint16(r *bytes.Reader) (uint16, error) {
+	var n uint16
+	err := binary.Read(r, binary.LittleEndian, &n)
+	return n, err
+}
+
+func getUint32(r *bytes.Reader) (uint32, error) {
+	var n uint32
+	err := binary.Read(r, binary.LittleEndian, &n)
+	return n, err
+}
+
+func getFloat32(r *bytes.Reader) (float32, error) {
+	var n float32
+	err := binary.Read(r, binary.LittleEndian, &n)
+	return n, err
+}
+
+// FIXME: pass a pointer and benchmark to get a feel for go's performance
+// passing things by value
+func (rec *uncompressedRecord) toEntry(strings stringTable) (entry, error) {
+	key := strings[rec.stringIndex]
+	reader := bytes.NewReader(rec.data)
+	var i uint64
+	var offset int64
+	var stats []stat
+	mmm := len(rec.data) / 4
+	for int(i) < mmm {
+		reader.Seek(offset, 0)
+		typeId, _ := getUint16(reader)
+		entryCount, err := getUint16(reader)
+		if err != nil {
+			return entry{}, err
+		}
+
+		stringIndex, err := getUint32(reader)
+		if err != nil {
+			return entry{}, err
+		}
+
+		i += 2 + uint64(entryCount)
+		name := strings[stringIndex]
+		for n := uint32(0); n < uint32(entryCount); n++ {
+			pos := offset + 8 + int64(4*n)
+			reader.Seek(pos, 0)
+			switch typeId {
+			case 1:
+				f, err := getFloat32(reader)
+				if err != nil {
+					return entry{}, err
+				}
+				if math.Abs(float64(f)) > 0.01 {
+					stats = append(stats, stat{name, f})
+				}
+			case 2:
+				index, err := getUint32(reader)
+				if err != nil {
+					return entry{}, err
+				}
+				if int(index) < len(strings) {
+					value := strings[int(index)]
+					if value != "" {
+						stats = append(stats, stat{name, value})
+					}
+				}
+			default:
+				value, err := getUint32(reader)
+				if err != nil {
+					return entry{}, err
+				}
+				if value > 0 {
+					stats = append(stats, stat{name, value})
+				}
+			}
+		}
+		offset += 8 + 4*int64(entryCount)
+	}
+	return entry{key, stats}, nil
+}
+
+func GetEntries(file string) ([]entry, error) {
 	reader, err := newReader(file)
 	if err != nil {
 		return nil, err
@@ -135,19 +230,24 @@ func GetItemDeclarations(file string) ([]itemDeclaration, error) {
 	// arguments (iterator, pointer), but measure beforehand to learn things
 	// about go!
 	metas := reader.readRecordMetas(recordStart, recordCount)
-	var decls []itemDeclaration
+	var decls []uncompressedRecord
 	for _, meta := range metas {
-		item, err := reader.readItemDeclaration(meta)
+		item, err := reader.readRecord(meta)
 		if err != nil {
-			return decls, err
+			return nil, err
 		}
 		decls = append(decls, item)
 	}
 
+	var items []entry
 	for _, decl := range decls {
-		name := strings[decl.stringIndex]
-		fmt.Printf("  got item '%s'\n", name)
+		it, err := decl.toEntry(strings)
+		if err != nil {
+			return items, err
+		}
+		// fmt.Printf("    ---> got entry %s with %d stats\n", it.key, len(it.stats))
+		items = append(items, it)
 	}
 
-	return decls, nil
+	return items, nil
 }
