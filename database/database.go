@@ -3,24 +3,26 @@ package database
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/pierrec/lz4"
 	"os"
 )
 
+// FIXME: try bytes.NewReader: does that replace it?
 type reader struct {
 	data   *[]byte
-	cursor uint
+	cursor uint32
 }
 
-func newReader(file string) (error, *reader) {
+func newReader(file string) (*reader, error) {
 	bytes, err := os.ReadFile(file)
 	if err != nil {
-		return fmt.Errorf("could not read %s: %w", file, err), nil
+		return nil, fmt.Errorf("could not read %s: %w", file, err)
 	}
 
-	return nil, &reader{&bytes, 0}
+	return &reader{&bytes, 0}, nil
 }
 
-func (r *reader) getBytes(count uint) []byte {
+func (r *reader) getBytes(count uint32) []byte {
 	bytes := (*r.data)[r.cursor : r.cursor+count]
 	r.cursor += count
 	return bytes
@@ -37,8 +39,8 @@ func (r *reader) readUint32() uint32 {
 }
 
 func (r *reader) readString() string {
-	length := uint(r.readUint32())
-	remaining := uint(len(*r.data)) - r.cursor
+	length := r.readUint32()
+	remaining := uint32(len(*r.data)) - r.cursor
 	if length > remaining || length > 10*1024 {
 		// fmt.Printf("  encountered strange length: %d, remaining: %d\n", length, remaining)
 		return ""
@@ -46,7 +48,7 @@ func (r *reader) readString() string {
 	return string(r.getBytes(length))
 }
 
-func (r *reader) getStringTable(start uint, byteCount uint) []string {
+func (r *reader) getStringTable(start uint32, byteCount uint32) []string {
 	end := start + byteCount
 	var strings []string
 	r.cursor = start
@@ -59,7 +61,7 @@ func (r *reader) getStringTable(start uint, byteCount uint) []string {
 	return strings
 }
 
-type itemDeclarationMeta struct {
+type recordMeta struct {
 	stringIndex      uint32
 	name             string
 	pos              uint32
@@ -67,40 +69,57 @@ type itemDeclarationMeta struct {
 	uncompressedSize uint32
 }
 
-func (r *reader) readItemDeclarationMeta() itemDeclarationMeta {
+func (r *reader) readRecordMeta() recordMeta {
 	stringIndex := r.readUint32()
 	name := r.readString()
 	offset := r.readUint32()
 	compressedSize := r.readUint32()
 	uncompressedSize := r.readUint32()
 	r.cursor += 8
-	return itemDeclarationMeta{stringIndex, name, offset, compressedSize, uncompressedSize}
+	return recordMeta{stringIndex, name, offset, compressedSize, uncompressedSize}
 }
 
-func (r *reader) readItemDeclarations(start uint, count uint) []itemDeclarationMeta {
+func (r *reader) readRecordMetas(start uint32, count uint32) []recordMeta {
 	r.cursor = start
 	fmt.Printf("trying to read %d meta records\n", count)
-	var metas []itemDeclarationMeta
+	var metas []recordMeta
 	for range count {
-		metas = append(metas, r.readItemDeclarationMeta())
+		metas = append(metas, r.readRecordMeta())
 	}
 	return metas
 }
 
-func GetItemDeclarations(file string) (error, []itemDeclarationMeta) {
-	err, reader := newReader(file)
+type itemDeclaration struct {
+	typ  string
+	stringIndex uint32
+	data []byte
+}
+
+func (r *reader) readItemDeclaration(meta recordMeta) (itemDeclaration, error) {
+	r.cursor = meta.pos + 24
+	compressed := r.getBytes(meta.compressedSize)
+	uncompressed := make([]byte, meta.uncompressedSize)
+	_, err := lz4.UncompressBlock(compressed, uncompressed)
 	if err != nil {
-		return err, nil
+		return itemDeclaration{}, err
+	}
+	return itemDeclaration{meta.name, meta.stringIndex, uncompressed}, nil
+}
+
+func GetItemDeclarations(file string) ([]itemDeclaration, error) {
+	reader, err := newReader(file)
+	if err != nil {
+		return nil, err
 	}
 
 	tag := reader.readUint16()
 	if tag != 2 {
-		return fmt.Errorf("unexpected tag: %d", tag), nil
+		return nil, fmt.Errorf("unexpected tag: %d", tag)
 	}
 
 	version := reader.readUint16()
 	if version != 3 {
-		return fmt.Errorf("unsupported version: %d", version), nil
+		return nil, fmt.Errorf("unsupported version: %d", version)
 	}
 
 	recordStart := reader.readUint32()
@@ -109,13 +128,26 @@ func GetItemDeclarations(file string) (error, []itemDeclarationMeta) {
 	stringStart := reader.readUint32()
 	stringByteCount := reader.readUint32()
 
-	strings := reader.getStringTable(uint(stringStart), uint(stringByteCount))
+	strings := reader.getStringTable(stringStart, stringByteCount)
 	fmt.Printf("found %d strings in %s\n", len(strings), file)
 
 	// FIXME: this is inefficient/naive as a first pass. use more efficient
 	// arguments (iterator, pointer), but measure beforehand to learn things
 	// about go!
-	metas := reader.readItemDeclarations(uint(recordStart), uint(recordCount))
+	metas := reader.readRecordMetas(recordStart, recordCount)
+	var decls []itemDeclaration
+	for _, meta := range metas {
+		item, err := reader.readItemDeclaration(meta)
+		if err != nil {
+			return decls, err
+		}
+		decls = append(decls, item)
+	}
 
-	return nil, metas
+	for _, decl := range decls {
+		name := strings[decl.stringIndex]
+		fmt.Printf("  got item '%s'\n", name)
+	}
+
+	return decls, nil
 }
