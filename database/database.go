@@ -12,7 +12,7 @@ import (
 
 // FIXME: try bytes.NewReader: does that replace it?
 type reader struct {
-	data   *[]byte
+	data   []byte
 	cursor uint32
 }
 
@@ -22,11 +22,11 @@ func newReader(file string) (*reader, error) {
 		return nil, fmt.Errorf("could not read %s: %w", file, err)
 	}
 
-	return &reader{&bytes, 0}, nil
+	return &reader{bytes, 0}, nil
 }
 
 func (r *reader) getBytes(count uint32) []byte {
-	bytes := (*r.data)[r.cursor : r.cursor+count]
+	bytes := r.data[r.cursor : r.cursor+count]
 	r.cursor += count
 	return bytes
 }
@@ -43,7 +43,7 @@ func (r *reader) readUint32() uint32 {
 
 func (r *reader) readString() string {
 	length := r.readUint32()
-	remaining := uint32(len(*r.data)) - r.cursor
+	remaining := uint32(len(r.data)) - r.cursor
 	if length > remaining || length > 10*1024 {
 		return ""
 	}
