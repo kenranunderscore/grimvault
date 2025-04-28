@@ -115,9 +115,9 @@ type stat struct {
 	value any
 }
 
-type entry struct {
-	key   string
-	stats []stat
+type Entry struct {
+	Key   string
+	Stats []stat
 }
 
 func getUint16(r *bytes.Reader) (uint16, error) {
@@ -148,7 +148,7 @@ func getFloat32(r *bytes.Reader) (float32, error) {
 
 // FIXME: pass a pointer and benchmark to get a feel for go's performance
 // passing things by value
-func (rec *uncompressedRecord) toEntry(strings stringTable) (entry, error) {
+func (rec *uncompressedRecord) toEntry(strings stringTable) (Entry, error) {
 	key := strings[rec.stringIndex]
 	reader := bytes.NewReader(rec.data)
 	var i uint64
@@ -160,12 +160,12 @@ func (rec *uncompressedRecord) toEntry(strings stringTable) (entry, error) {
 		typeId, _ := getUint16(reader)
 		entryCount, err := getUint16(reader)
 		if err != nil {
-			return entry{}, err
+			return Entry{}, err
 		}
 
 		stringIndex, err := getUint32(reader)
 		if err != nil {
-			return entry{}, err
+			return Entry{}, err
 		}
 
 		i += 2 + uint64(entryCount)
@@ -177,7 +177,7 @@ func (rec *uncompressedRecord) toEntry(strings stringTable) (entry, error) {
 			case 1:
 				f, err := getFloat32(reader)
 				if err != nil {
-					return entry{}, err
+					return Entry{}, err
 				}
 				if math.Abs(float64(f)) > 0.01 {
 					stats = append(stats, stat{name, f})
@@ -185,7 +185,7 @@ func (rec *uncompressedRecord) toEntry(strings stringTable) (entry, error) {
 			case 2:
 				index, err := getUint32(reader)
 				if err != nil {
-					return entry{}, err
+					return Entry{}, err
 				}
 				if int(index) < len(strings) {
 					value := strings[int(index)]
@@ -196,7 +196,7 @@ func (rec *uncompressedRecord) toEntry(strings stringTable) (entry, error) {
 			default:
 				value, err := getUint32(reader)
 				if err != nil {
-					return entry{}, err
+					return Entry{}, err
 				}
 				if value > 0 {
 					stats = append(stats, stat{name, value})
@@ -205,10 +205,10 @@ func (rec *uncompressedRecord) toEntry(strings stringTable) (entry, error) {
 		}
 		offset += 8 + 4*int64(entryCount)
 	}
-	return entry{key, stats}, nil
+	return Entry{key, stats}, nil
 }
 
-func GetEntries(file string) ([]entry, error) {
+func GetEntries(file string) ([]Entry, error) {
 	reader, err := newReader(file)
 	if err != nil {
 		return nil, err
@@ -246,7 +246,7 @@ func GetEntries(file string) ([]entry, error) {
 		decls = append(decls, item)
 	}
 
-	var items []entry
+	var items []Entry
 	for _, decl := range decls {
 		it, err := decl.toEntry(strings)
 		if err != nil {
