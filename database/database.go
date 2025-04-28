@@ -1,7 +1,6 @@
 package database
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -15,13 +14,17 @@ type reader struct {
 	cursor uint32
 }
 
-func newReader(file string) (*reader, error) {
+func newReader(data []byte) *reader {
+	return &reader{data, 0}
+}
+
+func readFile(file string) (*reader, error) {
 	bytes, err := os.ReadFile(file)
 	if err != nil {
 		return nil, fmt.Errorf("could not read %s: %w", file, err)
 	}
 
-	return &reader{bytes, 0}, nil
+	return newReader(bytes), nil
 }
 
 func (r *reader) getBytes(count uint32) []byte {
@@ -38,6 +41,11 @@ func (r *reader) readUint16() uint16 {
 func (r *reader) readUint32() uint32 {
 	bytes := r.getBytes(4)
 	return binary.LittleEndian.Uint32(bytes)
+}
+
+func (r *reader) readFloat32() float32 {
+	n := r.readUint32()
+	return math.Float32frombits(n)
 }
 
 func (r *reader) readString() string {
@@ -120,71 +128,30 @@ type Entry struct {
 	Stats []stat
 }
 
-func getUint16(r *bytes.Reader) (uint16, error) {
-	var buf [2]byte
-	_, err := r.Read(buf[:])
-	if err != nil {
-		return 0, err
-	}
-	return binary.LittleEndian.Uint16(buf[:]), nil
-}
-
-func getUint32(r *bytes.Reader) (uint32, error) {
-	var buf [4]byte
-	_, err := r.Read(buf[:])
-	if err != nil {
-		return 0, err
-	}
-	return binary.LittleEndian.Uint32(buf[:]), nil
-}
-
-func getFloat32(r *bytes.Reader) (float32, error) {
-	n, err := getUint32(r)
-	if err != nil {
-		return 0, err
-	}
-	return math.Float32frombits(n), nil
-}
-
 func (rec *uncompressedRecord) toEntry(strings stringTable) (Entry, error) {
 	key := strings[rec.stringIndex]
-	reader := bytes.NewReader(rec.data)
-	var i uint64
-	var offset int64
+	r := newReader(rec.data)
+	var i uint32
+	var offset uint32
 	var stats []stat
-	mmm := len(rec.data) / 4
-	for int(i) < mmm {
-		reader.Seek(offset, 0)
-		typeId, _ := getUint16(reader)
-		entryCount, err := getUint16(reader)
-		if err != nil {
-			return Entry{}, err
-		}
+	for int(i) < len(rec.data)/4 {
+		r.cursor = offset
+		typeId := r.readUint16()
+		entryCount := r.readUint16()
+		stringIndex := r.readUint32()
 
-		stringIndex, err := getUint32(reader)
-		if err != nil {
-			return Entry{}, err
-		}
-
-		i += 2 + uint64(entryCount)
+		i += 2 + uint32(entryCount)
 		name := strings[stringIndex]
 		for n := uint32(0); n < uint32(entryCount); n++ {
-			pos := offset + 8 + int64(4*n)
-			reader.Seek(pos, 0)
+			r.cursor = offset + 8 + 4*n
 			switch typeId {
 			case 1:
-				f, err := getFloat32(reader)
-				if err != nil {
-					return Entry{}, err
-				}
+				f := r.readFloat32()
 				if math.Abs(float64(f)) > 0.01 {
 					stats = append(stats, stat{name, f})
 				}
 			case 2:
-				index, err := getUint32(reader)
-				if err != nil {
-					return Entry{}, err
-				}
+				index := r.readUint32()
 				if int(index) < len(strings) {
 					value := strings[int(index)]
 					if value != "" {
@@ -192,22 +159,19 @@ func (rec *uncompressedRecord) toEntry(strings stringTable) (Entry, error) {
 					}
 				}
 			default:
-				value, err := getUint32(reader)
-				if err != nil {
-					return Entry{}, err
-				}
+				value := r.readUint32()
 				if value > 0 {
 					stats = append(stats, stat{name, value})
 				}
 			}
 		}
-		offset += 8 + 4*int64(entryCount)
+		offset += 8 + 4*uint32(entryCount)
 	}
 	return Entry{key, stats}, nil
 }
 
 func GetEntries(file string) ([]Entry, error) {
-	reader, err := newReader(file)
+	reader, err := readFile(file)
 	if err != nil {
 		return nil, err
 	}
