@@ -10,7 +10,6 @@ import (
 	"github.com/pierrec/lz4"
 )
 
-// FIXME: try bytes.NewReader: does that replace it?
 type reader struct {
 	data   []byte
 	cursor uint32
