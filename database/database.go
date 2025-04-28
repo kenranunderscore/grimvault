@@ -146,8 +146,6 @@ func getFloat32(r *bytes.Reader) (float32, error) {
 	return math.Float32frombits(n), nil
 }
 
-// FIXME: pass a pointer and benchmark to get a feel for go's performance
-// passing things by value
 func (rec *uncompressedRecord) toEntry(strings stringTable) (Entry, error) {
 	key := strings[rec.stringIndex]
 	reader := bytes.NewReader(rec.data)
