@@ -85,7 +85,7 @@ func (r *reader) readRecordMeta() recordMeta {
 func (r *reader) readRecordMetas(start uint32, count uint32) []recordMeta {
 	r.cursor = start
 	fmt.Printf("trying to read %d meta records\n", count)
-	var metas []recordMeta
+	metas := make([]recordMeta, 0, count)
 	for range count {
 		metas = append(metas, r.readRecordMeta())
 	}
