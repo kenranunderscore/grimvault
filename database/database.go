@@ -72,49 +72,44 @@ func (r *reader) getStringTable(start uint32, byteCount uint32) stringTable {
 	return strings
 }
 
-type recordMeta struct {
+type record struct {
 	stringIndex      uint32
 	name             string
 	pos              uint32
 	compressedSize   uint32
 	uncompressedSize uint32
+	data             []byte
 }
 
-func (r *reader) readRecordMeta() recordMeta {
+func (r *reader) readRecord() record {
 	stringIndex := r.readUint32()
 	name := r.readString()
 	offset := r.readUint32()
 	compressedSize := r.readUint32()
 	uncompressedSize := r.readUint32()
 	r.cursor += 8
-	return recordMeta{stringIndex, name, offset, compressedSize, uncompressedSize}
+	return record{stringIndex, name, offset, compressedSize, uncompressedSize, nil}
 }
 
-func (r *reader) readRecordMetas(start uint32, count uint32) []recordMeta {
+func (r *reader) readRecords(start uint32, count uint32) []record {
 	r.cursor = start
-	fmt.Printf("trying to read %d meta records\n", count)
-	metas := make([]recordMeta, 0, count)
+	fmt.Printf("reading %d records\n", count)
+	records := make([]record, 0, count)
 	for range count {
-		metas = append(metas, r.readRecordMeta())
+		records = append(records, r.readRecord())
 	}
-	return metas
+	return records
 }
 
-type uncompressedRecord struct {
-	typ         string
-	stringIndex uint32
-	data        []byte
-}
-
-func (r *reader) readRecord(meta recordMeta) (uncompressedRecord, error) {
-	r.cursor = meta.pos + 24
-	compressed := r.getBytes(meta.compressedSize)
-	uncompressed := make([]byte, meta.uncompressedSize)
-	_, err := lz4.UncompressBlock(compressed, uncompressed)
+func (r *reader) uncompress(rec record) error {
+	r.cursor = rec.pos + 24
+	compressed := r.getBytes(rec.compressedSize)
+	rec.data = make([]byte, rec.uncompressedSize)
+	_, err := lz4.UncompressBlock(compressed, rec.data)
 	if err != nil {
-		return uncompressedRecord{}, err
+		return err
 	}
-	return uncompressedRecord{meta.name, meta.stringIndex, uncompressed}, nil
+	return nil
 }
 
 type stat struct {
@@ -128,7 +123,7 @@ type Entry struct {
 	Stats []stat
 }
 
-func (rec *uncompressedRecord) toEntry(strings stringTable) (Entry, error) {
+func (rec *record) toEntry(strings stringTable) (Entry, error) {
 	key := strings[rec.stringIndex]
 	r := newReader(rec.data)
 	var i uint32
@@ -195,21 +190,16 @@ func GetEntries(file string) ([]Entry, error) {
 	strings := reader.getStringTable(stringStart, stringByteCount)
 	fmt.Printf("found %d strings in %s\n", len(strings), file)
 
-	// FIXME: this is inefficient/naive as a first pass. use more efficient
-	// arguments (iterator, pointer), but measure beforehand to learn things
-	// about go!
-	metas := reader.readRecordMetas(recordStart, recordCount)
-	var decls []uncompressedRecord
-	for _, meta := range metas {
-		item, err := reader.readRecord(meta)
+	records := reader.readRecords(recordStart, recordCount)
+	for _, rec := range records {
+		err := reader.uncompress(rec)
 		if err != nil {
 			return nil, err
 		}
-		decls = append(decls, item)
 	}
 
 	var items []Entry
-	for _, decl := range decls {
+	for _, decl := range records {
 		it, err := decl.toEntry(strings)
 		if err != nil {
 			return items, err
