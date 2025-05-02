@@ -4,6 +4,10 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/pierrec/lz4"
 )
 
 type reader struct {
@@ -41,7 +45,7 @@ func (r *reader) readCString() string {
 	}
 	// skip the 0
 	r.cursor++
-	return string(r.data[start:r.cursor])
+	return string(r.data[start : r.cursor-1])
 }
 
 type header struct {
@@ -68,23 +72,23 @@ func (r *reader) readHeader() header {
 	}
 }
 
-type filePart struct {
+type part struct {
 	offset           int32
 	compressedSize   int32
 	uncompressedSize int32
 }
 
-func (r *reader) readFileParts(header header) []filePart {
-	parts := make([]filePart, 0, header.recordCount)
+func (r *reader) readFileParts(header header) []part {
+	parts := make([]part, 0, header.recordCount)
 	r.cursor = uint32(header.recordOffset)
 	for range header.recordCount {
-		p := filePart{r.readInt32(), r.readInt32(), r.readInt32()}
+		p := part{r.readInt32(), r.readInt32(), r.readInt32()}
 		parts = append(parts, p)
 	}
 	return parts
 }
 
-func (r *reader) readStrings(header header) []string {
+func (r *reader) readFileNames(header header) []string {
 	strings := make([]string, 0, header.stringCount)
 	r.cursor = uint32(header.recordOffset + header.recordSize)
 	for range header.stringCount {
@@ -149,35 +153,157 @@ func (r *reader) readRecords(header header) []record {
 	return records
 }
 
-func ReadFile(file string) (int, error) {
+type result struct {
+	record record
+	file   string
+	part   part
+}
+
+type tag struct {
+	tag  string
+	name string
+}
+
+func (r *reader) uncompress(parts []part, record record) []byte {
+	data := make([]byte, record.uncompressedSize)
+	offset := 0
+	for i := range int(record.partCount) {
+		part := parts[int(record.index)+i]
+		compressed := r.data[part.offset : part.offset+part.compressedSize]
+		if part.compressedSize == part.uncompressedSize {
+			panic("  uncompressed chunk found")
+			// for j := range int(part.uncompressedSize) {
+			// 	rec.data[offset+j] = compressed[j]
+			// }
+		} else {
+			lz4.UncompressBlock(compressed, data)
+		}
+		offset += int(part.uncompressedSize)
+	}
+	return data
+}
+
+func (r *reader) readTags(parts []part, result result) []tag {
+	// FIXME: hasn't this been uncompressed already and resides in result.data?
+	// --> add test and try changing
+	data := r.uncompress(parts, result.record)
+	size := len(data)
+	var sb strings.Builder
+	// sb.Grow(size)
+	var lineb strings.Builder
+	// lineb.Grow(size >> 3)
+
+	for j := 0; j < size; {
+		eof := j == size-1
+		current := rune(data[j])
+		var next rune
+		if eof {
+			next = 0
+		} else {
+			next = rune(data[j+1])
+		}
+
+		switch current {
+		case '\r', '\n':
+			if lineb.Len() > 0 {
+				sb.WriteString(lineb.String())
+				lineb.Reset()
+			}
+			lineb.WriteByte('\n')
+			if current == '\r' && next == '\n' {
+				j++
+			}
+		case '^':
+			j++
+		default:
+			lineb.WriteRune(current)
+		}
+
+		j++
+	}
+
+	if lineb.Len() > 0 {
+		sb.WriteString(lineb.String())
+		lineb.Reset()
+	}
+
+	s := sb.String()
+	result.record.text = s
+	fmt.Printf("    blob length: %d\n", len(s))
+
+	var tags []tag
+	lines := strings.SplitSeq(s, "\n")
+
+	if result.file == "tags_console.txt" {
+		fmt.Printf("  blob: %+v", s[0:20])
+	}
+
+	for line := range lines {
+		// TODO: trim before this
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" && strings.HasPrefix(strings.ToLower(trimmed), "tag") {
+			kv := strings.SplitN(trimmed, "=", 2)
+			if len(kv) != 2 {
+				fmt.Printf("    fail: key value could not be parsed")
+			} else {
+				tag := tag{kv[0], kv[1]}
+				tags = append(tags, tag)
+			}
+		}
+	}
+	fmt.Printf("    got %d tags\n", len(tags))
+	return tags
+}
+
+func (r *reader) readAllTags(parts []part, results []result) []tag {
+	var tags []tag
+	for _, result := range results {
+		ext := filepath.Ext(result.file)
+		if ext != ".txt" {
+			continue
+		}
+
+		fmt.Printf(" reading file '%s'\n", result.file)
+		ts := r.readTags(parts, result)
+		tags = append(tags, ts...)
+	}
+	return tags
+}
+
+func ReadFile(file string) ([]tag, error) {
 	bytes, err := os.ReadFile(file)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	r := newReader(bytes)
 	header := r.readHeader()
 	if header.version != 3 {
-		return 0, fmt.Errorf("unknown arc header version: %d\n", header.version)
+		return nil, fmt.Errorf("unknown arc header version: %d\n", header.version)
 	}
 
 	parts := r.readFileParts(header)
 	fmt.Printf("found %d parts\n", len(parts))
-	// for p := range parts {
-	// 	fmt.Printf("  part: %v\n", p)
-	// }
 
-	strings := r.readStrings(header)
-	fmt.Printf("found %d strings\n", len(strings))
-	// for s := range strings {
-	// 	fmt.Printf("  string: %s\n", s)
-	// }
+	files := r.readFileNames(header)
+	fmt.Printf("found %d strings\n", len(files))
 
 	records := r.readRecords(header)
 	fmt.Printf("found %d records\n", len(records))
-	// for _, r := range records {
-	// 	fmt.Printf("  record: %+v\n", r)
-	// }
 
-	return len(strings), nil
+	for _, rec := range records {
+		rec.data = r.uncompress(parts, rec)
+	}
+
+	fmt.Println("done uncompressing!")
+
+	// TODO: check whether that's even correct; do we need to use record.index
+	// instead like above?
+	results := make([]result, 0, header.recordCount)
+	for i := range header.recordCount {
+		results = append(results, result{records[i], files[i], parts[i]})
+	}
+
+	tags := r.readAllTags(parts, results)
+	return tags, nil
 }
