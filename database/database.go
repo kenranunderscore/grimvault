@@ -101,7 +101,7 @@ func (r *reader) readRecords(start uint32, count uint32) []record {
 	return records
 }
 
-func (r *reader) uncompress(rec record) error {
+func (r *reader) uncompress(rec *record) error {
 	r.cursor = rec.pos + 24
 	compressed := r.getBytes(rec.compressedSize)
 	rec.data = make([]byte, rec.uncompressedSize)
@@ -191,16 +191,16 @@ func GetEntries(file string) ([]Entry, error) {
 	fmt.Printf("found %d strings in %s\n", len(strings), file)
 
 	records := reader.readRecords(recordStart, recordCount)
-	for _, rec := range records {
-		err := reader.uncompress(rec)
+	for i := range records {
+		err := reader.uncompress(&records[i])
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	var items []Entry
-	for _, decl := range records {
-		it, err := decl.toEntry(strings)
+	for i := range records {
+		it, err := records[i].toEntry(strings)
 		if err != nil {
 			return items, err
 		}

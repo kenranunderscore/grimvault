@@ -291,8 +291,8 @@ func ReadFile(file string) ([]tag, error) {
 	records := r.readRecords(header)
 	fmt.Printf("found %d records\n", len(records))
 
-	for _, rec := range records {
-		rec.data = r.uncompress(parts, rec)
+	for i := range records {
+		records[i].data = r.uncompress(parts, records[i])
 	}
 
 	fmt.Println("done uncompressing!")
