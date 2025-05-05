@@ -5,9 +5,9 @@ import (
 )
 
 func TestReadFile(t *testing.T) {
-	tags, err := ReadFile("../test_data/some.arc")
+	tags, err := ReadFile("../test_data/arc/some.arc")
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	ntags := len(tags)
 	if ntags != 11097 {

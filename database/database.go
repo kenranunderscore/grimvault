@@ -112,15 +112,15 @@ func (r *reader) uncompress(rec *record) error {
 	return nil
 }
 
-type stat struct {
-	name string
+type Stat struct {
+	Name string
 	// FIXME: go has no sum types, so what's the idiom here?
-	value any
+	Value any
 }
 
 type Entry struct {
 	Key   string
-	Stats []stat
+	Stats []Stat
 }
 
 func (rec *record) toEntry(strings stringTable) (Entry, error) {
@@ -128,7 +128,7 @@ func (rec *record) toEntry(strings stringTable) (Entry, error) {
 	r := newReader(rec.data)
 	var i uint32
 	var offset uint32
-	var stats []stat
+	var stats []Stat
 	for int(i) < len(rec.data)/4 {
 		r.cursor = offset
 		typeId := r.readUint16()
@@ -143,20 +143,20 @@ func (rec *record) toEntry(strings stringTable) (Entry, error) {
 			case 1:
 				f := r.readFloat32()
 				if math.Abs(float64(f)) > 0.01 {
-					stats = append(stats, stat{name, f})
+					stats = append(stats, Stat{name, f})
 				}
 			case 2:
 				index := r.readUint32()
 				if int(index) < len(strings) {
 					value := strings[int(index)]
 					if value != "" {
-						stats = append(stats, stat{name, value})
+						stats = append(stats, Stat{name, value})
 					}
 				}
 			default:
 				value := r.readUint32()
 				if value > 0 {
-					stats = append(stats, stat{name, value})
+					stats = append(stats, Stat{name, value})
 				}
 			}
 		}
@@ -204,7 +204,6 @@ func GetEntries(file string) ([]Entry, error) {
 		if err != nil {
 			return items, err
 		}
-		// fmt.Printf("    ---> got entry %s with %d stats\n", it.key, len(it.stats))
 		items = append(items, it)
 	}
 
