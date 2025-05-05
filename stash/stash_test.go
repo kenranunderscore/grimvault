@@ -6,6 +6,8 @@ import (
 )
 
 func TestDecodeEmptyStashFile(t *testing.T) {
+	t.Parallel()
+
 	path := "../test_data/transfer_empty.gst"
 	d, err := NewDecoder(path)
 	if err != nil {
@@ -57,6 +59,8 @@ func TestDecodeEmptyStashFile(t *testing.T) {
 }
 
 func TestDecodeNonEmptyStashFile(t *testing.T) {
+	t.Parallel()
+
 	path := "../test_data/transfer.gst"
 	d, err := NewDecoder(path)
 	if err != nil {

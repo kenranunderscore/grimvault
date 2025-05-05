@@ -5,6 +5,7 @@ import (
 )
 
 func TestReadFile(t *testing.T) {
+	t.Parallel()
 	tags, err := ReadFile("../test_data/arc/some.arc")
 	if err != nil {
 		t.Fatal(err)

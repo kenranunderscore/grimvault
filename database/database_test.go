@@ -13,6 +13,7 @@ import (
 var updateGoldFiles = flag.Bool("update", false, "update golden files")
 
 func TestAllDatabasesGolden(t *testing.T) {
+	t.Parallel()
 	flag.Parse()
 	testData := "../test_data/arz"
 	expectedDir := filepath.Join(testData, "expected")
