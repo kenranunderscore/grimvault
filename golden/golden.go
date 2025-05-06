@@ -12,8 +12,19 @@ import (
 
 var updateGoldenFiles = flag.Bool("update", false, "update golden files")
 
+// A function that takes an input `file` and should return the value to be
+// tested against the contents of the corresponding golden file.
+//
+// Its output is also used to initially create or update the golden files.
 type GoldenTestFunc func(t *testing.T, file string) any
 
+// For each file in directory `dir` that matches `glob`, run a sub-test calling
+// `f` on said file and comparing its output with that of the corresponding
+// golden file.
+//
+// Those golden files live in the "expected" directory in `dir`. Passing the
+// `-update` flag to `go test` leads to initial creation or update of the golden
+// files from the output of `f`.
 func Run(t *testing.T, dir string, glob string, f GoldenTestFunc) {
 	t.Parallel()
 
