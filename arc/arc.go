@@ -159,9 +159,9 @@ type result struct {
 	part   part
 }
 
-type tag struct {
-	tag  string
-	name string
+type Tag struct {
+	Tag  string
+	Name string
 }
 
 func (r *reader) uncompress(parts []part, record record) []byte {
@@ -183,7 +183,7 @@ func (r *reader) uncompress(parts []part, record record) []byte {
 	return data
 }
 
-func (r *reader) readTags(parts []part, result result) []tag {
+func (r *reader) readTags(parts []part, result result) []Tag {
 	// FIXME: hasn't this been uncompressed already and resides in result.data?
 	// --> add test and try changing
 	data := r.uncompress(parts, result.record)
@@ -231,7 +231,7 @@ func (r *reader) readTags(parts []part, result result) []tag {
 	result.record.text = s
 	fmt.Printf("    blob length: %d\n", len(s))
 
-	var tags []tag
+	var tags []Tag
 	lines := strings.SplitSeq(s, "\n")
 
 	if result.file == "tags_console.txt" {
@@ -246,7 +246,7 @@ func (r *reader) readTags(parts []part, result result) []tag {
 			if len(kv) != 2 {
 				fmt.Printf("    fail: key value could not be parsed")
 			} else {
-				tag := tag{kv[0], kv[1]}
+				tag := Tag{kv[0], kv[1]}
 				tags = append(tags, tag)
 			}
 		}
@@ -255,8 +255,8 @@ func (r *reader) readTags(parts []part, result result) []tag {
 	return tags
 }
 
-func (r *reader) readAllTags(parts []part, results []result) []tag {
-	var tags []tag
+func (r *reader) readAllTags(parts []part, results []result) []Tag {
+	var tags []Tag
 	for _, result := range results {
 		ext := filepath.Ext(result.file)
 		if ext != ".txt" {
@@ -270,7 +270,7 @@ func (r *reader) readAllTags(parts []part, results []result) []tag {
 	return tags
 }
 
-func ReadFile(file string) ([]tag, error) {
+func ReadFile(file string) ([]Tag, error) {
 	bytes, err := os.ReadFile(file)
 	if err != nil {
 		return nil, err

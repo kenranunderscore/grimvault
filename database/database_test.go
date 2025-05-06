@@ -34,7 +34,7 @@ func TestAllDatabasesGolden(t *testing.T) {
 
 			content, err := cbor.Marshal(entries)
 			if err != nil {
-				t.Fatalf("Could not convert entries to JSON: %v", err)
+				t.Fatalf("Could not serialize entries: %v", err)
 			}
 
 			goldFile := filepath.Join(expectedDir, name+".gold")
