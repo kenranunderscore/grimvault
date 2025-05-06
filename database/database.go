@@ -73,7 +73,7 @@ func (r *reader) getStringTable(start uint32) stringTable {
 type record struct {
 	stringIndex      uint32
 	name             string
-	pos              uint32
+	offset           uint32
 	compressedSize   uint32
 	uncompressedSize uint32
 	data             []byte
@@ -100,7 +100,7 @@ func (r *reader) readRecords(start uint32, count uint32) []record {
 }
 
 func (r *reader) uncompress(rec *record) error {
-	r.cursor = rec.pos + 24
+	r.cursor = rec.offset + 24
 	compressed := r.getBytes(rec.compressedSize)
 	rec.data = make([]byte, rec.uncompressedSize)
 	_, err := lz4.UncompressBlock(compressed, rec.data)
