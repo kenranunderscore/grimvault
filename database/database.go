@@ -59,15 +59,13 @@ func (r *reader) readString() string {
 
 type stringTable []string
 
-func (r *reader) getStringTable(start uint32, byteCount uint32) stringTable {
-	end := start + byteCount
+func (r *reader) getStringTable(start uint32) stringTable {
 	var strings []string
 	r.cursor = start
-	for r.cursor < end {
-		n := r.readUint32()
-		for range n {
-			strings = append(strings, r.readString())
-		}
+	count := r.readUint32()
+	fmt.Printf("    reading %d strings\n", count)
+	for range count {
+		strings = append(strings, r.readString())
 	}
 	return strings
 }
@@ -185,10 +183,10 @@ func GetEntries(file string) ([]Entry, error) {
 	_ = reader.readUint32()
 	recordCount := reader.readUint32()
 	stringStart := reader.readUint32()
-	stringByteCount := reader.readUint32()
+	_ = reader.readUint32()
 
-	strings := reader.getStringTable(stringStart, stringByteCount)
-	fmt.Printf("found %d strings in %s\n", len(strings), file)
+	strings := reader.getStringTable(stringStart)
+	fmt.Printf("  found %d strings in %s\n", len(strings), file)
 
 	records := reader.readRecords(recordStart, recordCount)
 	for i := range records {
