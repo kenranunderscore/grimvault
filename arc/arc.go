@@ -234,10 +234,8 @@ func (r *reader) readTags(parts []part, files []string, records []record, file s
 	}
 
 	var tags []Tag
-	// FIXME:
 	lines := strings.SplitSeq(blob, "\n")
 	for line := range lines {
-		// TODO: trim before this
 		trimmed := strings.TrimSpace(line)
 		if trimmed != "" && strings.HasPrefix(strings.ToLower(trimmed), "tag") {
 			kv := strings.SplitN(trimmed, "=", 2)
