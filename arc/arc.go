@@ -168,52 +168,49 @@ func (r *reader) uncompress(parts []part, record record) []byte {
 }
 
 func (r *reader) readTags(record *record) []Tag {
-	blob := ""
-	if record.text == "" {
-		size := len(record.data)
-		var sb strings.Builder
-		sb.Grow(size)
-		var lineb strings.Builder
-		lineb.Grow(size >> 3)
+	size := len(record.data)
+	var sb strings.Builder
+	sb.Grow(size)
+	var lineb strings.Builder
+	lineb.Grow(size >> 3)
 
-		for j := 0; j < size; {
-			eof := j == size-1
-			current := rune(record.data[j])
-			var next rune
-			if eof {
-				next = 0
-			} else {
-				next = rune(record.data[j+1])
+	for j := 0; j < size; {
+		eof := j == size-1
+		current := rune(record.data[j])
+		var next rune
+		if eof {
+			next = 0
+		} else {
+			next = rune(record.data[j+1])
+		}
+
+		switch current {
+		case '\r', '\n':
+			if lineb.Len() > 0 {
+				sb.WriteString(lineb.String())
+				lineb.Reset()
 			}
-
-			switch current {
-			case '\r', '\n':
-				if lineb.Len() > 0 {
-					sb.WriteString(lineb.String())
-					lineb.Reset()
-				}
-				lineb.WriteByte('\n')
-				if current == '\r' && next == '\n' {
-					j++
-				}
-			case '^':
+			lineb.WriteByte('\n')
+			if current == '\r' && next == '\n' {
 				j++
-			default:
-				lineb.WriteRune(current)
 			}
-
+		case '^':
 			j++
+		default:
+			lineb.WriteRune(current)
 		}
 
-		if lineb.Len() > 0 {
-			sb.WriteString(lineb.String())
-			lineb.Reset()
-		}
-
-		blob = sb.String()
-		// FIXME: do I need the blob inside the record even?
-		record.text = blob
+		j++
 	}
+
+	if lineb.Len() > 0 {
+		sb.WriteString(lineb.String())
+		lineb.Reset()
+	}
+
+	blob := sb.String()
+	// FIXME: do I need the blob inside the record even?
+	record.text = blob
 
 	var tags []Tag
 	lines := strings.SplitSeq(blob, "\n")
