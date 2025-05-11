@@ -41,7 +41,7 @@ func (r *reader) readCString() string {
 }
 
 type header struct {
-	stringCount  uint32
+	fileCount    uint32
 	recordCount  uint32
 	recordSize   uint32
 	stringSize   uint32
@@ -81,9 +81,9 @@ func (r *reader) readFileParts(header header) []part {
 }
 
 func (r *reader) readFileNames(header header) []string {
-	files := make([]string, 0, header.stringCount)
+	files := make([]string, 0, header.fileCount)
 	r.cursor = uint32(header.recordOffset + header.recordSize)
-	for range header.stringCount {
+	for range header.fileCount {
 		s := r.readCString()
 		files = append(files, s)
 	}
@@ -135,7 +135,7 @@ func (r *reader) readRecord() record {
 func (r *reader) readRecords(header header) []record {
 	r.cursor = uint32(header.recordOffset + header.recordSize + header.stringSize)
 	records := make([]record, 0, header.recordCount)
-	for range header.stringCount {
+	for range header.fileCount {
 		rec := r.readRecord()
 		if rec.uncompressedSize > 0 {
 			records = append(records, rec)
@@ -167,59 +167,52 @@ func (r *reader) uncompress(parts []part, record record) []byte {
 	return data
 }
 
-func (r *reader) readTags(files []string, records []record, file string) []Tag {
+func (r *reader) readTags(record *record) []Tag {
 	blob := ""
-	for i := range files {
-		if files[i] != file {
-			continue
-		}
+	if record.text == "" {
+		size := len(record.data)
+		var sb strings.Builder
+		sb.Grow(size)
+		var lineb strings.Builder
+		lineb.Grow(size >> 3)
 
-		var record = records[i]
-		if record.text == "" {
-			size := len(record.data)
-			var sb strings.Builder
-			sb.Grow(size)
-			var lineb strings.Builder
-			lineb.Grow(size >> 3)
+		for j := 0; j < size; {
+			eof := j == size-1
+			current := rune(record.data[j])
+			var next rune
+			if eof {
+				next = 0
+			} else {
+				next = rune(record.data[j+1])
+			}
 
-			for j := 0; j < size; {
-				eof := j == size-1
-				current := rune(record.data[j])
-				var next rune
-				if eof {
-					next = 0
-				} else {
-					next = rune(record.data[j+1])
+			switch current {
+			case '\r', '\n':
+				if lineb.Len() > 0 {
+					sb.WriteString(lineb.String())
+					lineb.Reset()
 				}
-
-				switch current {
-				case '\r', '\n':
-					if lineb.Len() > 0 {
-						sb.WriteString(lineb.String())
-						lineb.Reset()
-					}
-					lineb.WriteByte('\n')
-					if current == '\r' && next == '\n' {
-						j++
-					}
-				case '^':
+				lineb.WriteByte('\n')
+				if current == '\r' && next == '\n' {
 					j++
-				default:
-					lineb.WriteRune(current)
 				}
-
+			case '^':
 				j++
+			default:
+				lineb.WriteRune(current)
 			}
 
-			if lineb.Len() > 0 {
-				sb.WriteString(lineb.String())
-				lineb.Reset()
-			}
-
-			blob = sb.String()
-			// FIXME: do I need the blob inside the record even?
-			record.text = blob
+			j++
 		}
+
+		if lineb.Len() > 0 {
+			sb.WriteString(lineb.String())
+			lineb.Reset()
+		}
+
+		blob = sb.String()
+		// FIXME: do I need the blob inside the record even?
+		record.text = blob
 	}
 
 	var tags []Tag
@@ -243,13 +236,13 @@ func (r *reader) readTags(files []string, records []record, file string) []Tag {
 
 func (r *reader) readAllTags(files []string, records []record) []Tag {
 	var tags []Tag
-	for _, file := range files {
+	for i, file := range files {
 		ext := filepath.Ext(file)
 		if ext != ".txt" {
 			continue
 		}
 
-		ts := r.readTags(files, records, file)
+		ts := r.readTags(&records[i])
 		tags = append(tags, ts...)
 	}
 	return tags
@@ -264,7 +257,7 @@ func ReadFile(file string) ([]Tag, error) {
 	r := newReader(bytes)
 	header, err := r.readHeader()
 	if err != nil {
-		return nil, fmt.Errorf("could not read header: %v", err)
+		return nil, fmt.Errorf("could not read header: %+v\n", err)
 	}
 
 	parts := r.readFileParts(header)
