@@ -186,9 +186,9 @@ func (r *reader) readTags(files []string, records []record, file string) []Tag {
 		if record.text == "" {
 			size := len(record.data)
 			var sb strings.Builder
-			// sb.Grow(size)
+			sb.Grow(size)
 			var lineb strings.Builder
-			// lineb.Grow(size >> 3)
+			lineb.Grow(size >> 3)
 
 			for j := 0; j < size; {
 				eof := j == size-1
