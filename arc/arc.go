@@ -25,18 +25,10 @@ func (r *reader) readUint32() uint32 {
 	return binary.LittleEndian.Uint32(b)
 }
 
-func (r *reader) readInt32() int32 {
-	return int32(r.readUint32())
-}
-
 func (r *reader) readUint64() uint64 {
 	b := r.data[r.cursor : r.cursor+8]
 	r.cursor += 8
 	return binary.LittleEndian.Uint64(b)
-}
-
-func (r *reader) readInt64() int64 {
-	return int64(r.readUint64())
 }
 
 func (r *reader) readCString() string {
@@ -49,39 +41,39 @@ func (r *reader) readCString() string {
 }
 
 type header struct {
-	version      int32
-	stringCount  int32
-	recordCount  int32
-	recordSize   int32
-	stringSize   int32
-	recordOffset int32
+	version      uint32
+	stringCount  uint32
+	recordCount  uint32
+	recordSize   uint32
+	stringSize   uint32
+	recordOffset uint32
 }
 
 // FIXME: should these really be ints? everything else uses uints almost
 // exclusively
 func (r *reader) readHeader() header {
-	_ = r.readInt32()
+	_ = r.readUint32()
 	return header{
-		r.readInt32(),
-		r.readInt32(),
-		r.readInt32(),
-		r.readInt32(),
-		r.readInt32(),
-		r.readInt32(),
+		r.readUint32(),
+		r.readUint32(),
+		r.readUint32(),
+		r.readUint32(),
+		r.readUint32(),
+		r.readUint32(),
 	}
 }
 
 type part struct {
-	offset           int32
-	compressedSize   int32
-	uncompressedSize int32
+	offset           uint32
+	compressedSize   uint32
+	uncompressedSize uint32
 }
 
 func (r *reader) readFileParts(header header) []part {
 	parts := make([]part, 0, header.recordCount)
 	r.cursor = uint32(header.recordOffset)
 	for range header.recordCount {
-		p := part{r.readInt32(), r.readInt32(), r.readInt32()}
+		p := part{r.readUint32(), r.readUint32(), r.readUint32()}
 		parts = append(parts, p)
 	}
 	return parts
@@ -98,31 +90,31 @@ func (r *reader) readFileNames(header header) []string {
 }
 
 type record struct {
-	typ              int32
-	offset           int32
-	compressedSize   int32
-	uncompressedSize int32
-	unknown          int32
-	time             int64
-	partCount        int32
-	index            int32
-	stringSize       int32
-	stringOffset     int32
+	typ              uint32
+	offset           uint32
+	compressedSize   uint32
+	uncompressedSize uint32
+	unknown          uint32
+	time             uint64
+	partCount        uint32
+	index            uint32
+	stringSize       uint32
+	stringOffset     uint32
 	data             []byte
 	text             string
 }
 
 func (r *reader) readRecord() record {
-	typ := r.readInt32()
-	offset := r.readInt32()
-	compressedSize := r.readInt32()
-	uncompressedSize := r.readInt32()
-	unknown := r.readInt32()
-	time := r.readInt64()
-	partCount := r.readInt32()
-	index := r.readInt32()
-	stringSize := r.readInt32()
-	stringOffset := r.readInt32()
+	typ := r.readUint32()
+	offset := r.readUint32()
+	compressedSize := r.readUint32()
+	uncompressedSize := r.readUint32()
+	unknown := r.readUint32()
+	time := r.readUint64()
+	partCount := r.readUint32()
+	index := r.readUint32()
+	stringSize := r.readUint32()
+	stringOffset := r.readUint32()
 	return record{
 		typ,
 		offset,
