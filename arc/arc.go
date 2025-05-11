@@ -49,7 +49,6 @@ func (r *reader) readCString() string {
 }
 
 type header struct {
-	unknown      int32
 	version      int32
 	stringCount  int32
 	recordCount  int32
@@ -61,8 +60,8 @@ type header struct {
 // FIXME: should these really be ints? everything else uses uints almost
 // exclusively
 func (r *reader) readHeader() header {
+	_ = r.readInt32()
 	return header{
-		r.readInt32(),
 		r.readInt32(),
 		r.readInt32(),
 		r.readInt32(),
