@@ -137,6 +137,10 @@ func (r *reader) readRecords(header header) []record {
 	records := make([]record, 0, header.recordCount)
 	for range header.fileCount {
 		rec := r.readRecord()
+		// NOTE: Sometimes we hit "records" with uncompressed size 0. In those
+		// cases the subsequent record has always had the same index as this one
+		// so far, and there have always been `header.recordCount` many records.
+		// We thus maintain the invariant `records[i].index == i`.
 		if rec.uncompressedSize > 0 {
 			records = append(records, rec)
 		}
