@@ -243,6 +243,7 @@ func (r *reader) readTags(parts []part, files []string, records []record, file s
 			kv := strings.SplitN(trimmed, "=", 2)
 			if len(kv) != 2 {
 				fmt.Println("    fail: key value could not be parsed")
+				fmt.Printf("       kv == %v\n", kv)
 			} else {
 				tag := Tag{kv[0], kv[1]}
 				tags = append(tags, tag)

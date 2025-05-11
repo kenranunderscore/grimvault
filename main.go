@@ -14,10 +14,11 @@ func main() {
 	// if err != nil {
 	// 	panic(err)
 	// }
-	_, err := arc.ReadFile("./test_data/some.arc")
+	tags, err := arc.ReadFile("./test_data/arc/some.arc")
 	if err != nil {
-		fmt.Println("read arc file!")
+		panic(fmt.Errorf("could not read arc file: %v\n", err))
 	}
+	fmt.Printf("read arc file!, got %d tags\n", len(tags))
 	// for range res {
 	// 	// fmt.Printf("  stats: %d\n", len(x.Stats))
 	// }
