@@ -101,7 +101,6 @@ type record struct {
 	index            uint32
 	stringSize       uint32
 	stringOffset     uint32
-	data             []byte
 	text             string
 }
 
@@ -127,7 +126,6 @@ func (r *reader) readRecord() record {
 		index,
 		stringSize,
 		stringOffset,
-		nil,
 		"",
 	}
 }
@@ -172,52 +170,8 @@ func (r *reader) uncompress(parts []part, record record) []byte {
 }
 
 func (r *reader) readTags(record *record) []Tag {
-	size := len(record.data)
-	var sb strings.Builder
-	sb.Grow(size)
-	var lineb strings.Builder
-	lineb.Grow(size >> 3)
-
-	for j := 0; j < size; {
-		eof := j == size-1
-		current := rune(record.data[j])
-		var next rune
-		if eof {
-			next = 0
-		} else {
-			next = rune(record.data[j+1])
-		}
-
-		switch current {
-		case '\r', '\n':
-			if lineb.Len() > 0 {
-				sb.WriteString(lineb.String())
-				lineb.Reset()
-			}
-			lineb.WriteByte('\n')
-			if current == '\r' && next == '\n' {
-				j++
-			}
-		case '^':
-			j++
-		default:
-			lineb.WriteRune(current)
-		}
-
-		j++
-	}
-
-	if lineb.Len() > 0 {
-		sb.WriteString(lineb.String())
-		lineb.Reset()
-	}
-
-	blob := sb.String()
-	// FIXME: do I need the blob inside the record even?
-	record.text = blob
-
 	var tags []Tag
-	lines := strings.SplitSeq(blob, "\n")
+	lines := strings.SplitSeq(record.text, "\n")
 	for line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed != "" && strings.HasPrefix(strings.ToLower(trimmed), "tag") {
@@ -266,7 +220,7 @@ func ReadFile(file string) ([]Tag, error) {
 	records := r.readRecords(header)
 
 	for i := range records {
-		records[i].data = r.uncompress(parts, records[i])
+		records[i].text = string(r.uncompress(parts, records[i]))
 	}
 
 	tags := r.readAllTags(files, records)
