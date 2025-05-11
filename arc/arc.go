@@ -175,7 +175,7 @@ func (r *reader) uncompress(parts []part, record record) []byte {
 	return data
 }
 
-func (r *reader) readTags(parts []part, files []string, records []record, file string) []Tag {
+func (r *reader) readTags(files []string, records []record, file string) []Tag {
 	blob := ""
 	for i := range files {
 		if files[i] != file {
@@ -184,10 +184,7 @@ func (r *reader) readTags(parts []part, files []string, records []record, file s
 
 		var record = records[i]
 		if record.text == "" {
-			// FIXME: hasn't this been uncompressed already and resides in result.data?
-			// --> add test and try changing
-			data := r.uncompress(parts, record)
-			size := len(data)
+			size := len(record.data)
 			var sb strings.Builder
 			// sb.Grow(size)
 			var lineb strings.Builder
@@ -195,12 +192,12 @@ func (r *reader) readTags(parts []part, files []string, records []record, file s
 
 			for j := 0; j < size; {
 				eof := j == size-1
-				current := rune(data[j])
+				current := rune(record.data[j])
 				var next rune
 				if eof {
 					next = 0
 				} else {
-					next = rune(data[j+1])
+					next = rune(record.data[j+1])
 				}
 
 				switch current {
@@ -252,7 +249,7 @@ func (r *reader) readTags(parts []part, files []string, records []record, file s
 	return tags
 }
 
-func (r *reader) readAllTags(parts []part, files []string, records []record) []Tag {
+func (r *reader) readAllTags(files []string, records []record) []Tag {
 	var tags []Tag
 	for _, file := range files {
 		ext := filepath.Ext(file)
@@ -260,7 +257,7 @@ func (r *reader) readAllTags(parts []part, files []string, records []record) []T
 			continue
 		}
 
-		ts := r.readTags(parts, files, records, file)
+		ts := r.readTags(files, records, file)
 		tags = append(tags, ts...)
 	}
 	return tags
@@ -286,6 +283,6 @@ func ReadFile(file string) ([]Tag, error) {
 		records[i].data = r.uncompress(parts, records[i])
 	}
 
-	tags := r.readAllTags(parts, files, records)
+	tags := r.readAllTags(files, records)
 	return tags, nil
 }
