@@ -41,7 +41,6 @@ func (r *reader) readCString() string {
 }
 
 type header struct {
-	version      uint32
 	stringCount  uint32
 	recordCount  uint32
 	recordSize   uint32
@@ -49,18 +48,20 @@ type header struct {
 	recordOffset uint32
 }
 
-// FIXME: should these really be ints? everything else uses uints almost
-// exclusively
-func (r *reader) readHeader() header {
+func (r *reader) readHeader() (header, error) {
 	_ = r.readUint32()
+	version := r.readUint32()
+	if version != 3 {
+		return header{}, fmt.Errorf("unknown header version: %d", version)
+	}
+
 	return header{
 		r.readUint32(),
 		r.readUint32(),
 		r.readUint32(),
 		r.readUint32(),
 		r.readUint32(),
-		r.readUint32(),
-	}
+	}, nil
 }
 
 type part struct {
@@ -261,9 +262,9 @@ func ReadFile(file string) ([]Tag, error) {
 	}
 
 	r := newReader(bytes)
-	header := r.readHeader()
-	if header.version != 3 {
-		return nil, fmt.Errorf("unknown arc header version: %d\n", header.version)
+	header, err := r.readHeader()
+	if err != nil {
+		return nil, fmt.Errorf("could not read header: %v", err)
 	}
 
 	parts := r.readFileParts(header)

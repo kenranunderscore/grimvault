@@ -16,7 +16,7 @@ func main() {
 	// }
 	tags, err := arc.ReadFile("./test_data/arc/some.arc")
 	if err != nil {
-		panic(fmt.Errorf("could not read arc file: %v\n", err))
+		panic(fmt.Errorf("could not read arc file: %v", err))
 	}
 	fmt.Printf("read arc file!, got %d tags\n", len(tags))
 	// for range res {
