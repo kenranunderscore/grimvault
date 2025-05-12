@@ -75,19 +75,16 @@ func (r *T) Float32() float32 {
 }
 
 // Read a `string` at the current position.
+//
+// This expects the data at the current position to start with a `uint32`
+// containing the length of the string to read.
 func (r *T) String() string {
 	length := r.Uint32()
-	remaining := uint32(len(r.data)) - r.cursor
-	if length > remaining || length > 10*1024 {
-		return ""
-	}
 	return string(r.Bytes(length))
 }
 
 // Read a C string at the current position; that is, read until encountering a
 // terminal '\0'.
-//
-// FIXME: which one of the string variants is really necessary?
 func (r *T) CString() string {
 	start := r.cursor
 	for ; r.data[r.cursor] != 0; r.cursor++ {
