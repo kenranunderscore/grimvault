@@ -1,44 +1,13 @@
 package arc
 
 import (
-	"encoding/binary"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/kenranunderscore/grimvault/rawreader"
 	"github.com/pierrec/lz4"
 )
-
-type reader struct {
-	data   []byte
-	cursor uint32
-}
-
-func newReader(data []byte) reader {
-	return reader{data, 0}
-}
-
-func (r *reader) readUint32() uint32 {
-	b := r.data[r.cursor : r.cursor+4]
-	r.cursor += 4
-	return binary.LittleEndian.Uint32(b)
-}
-
-func (r *reader) readUint64() uint64 {
-	b := r.data[r.cursor : r.cursor+8]
-	r.cursor += 8
-	return binary.LittleEndian.Uint64(b)
-}
-
-func (r *reader) readCString() string {
-	start := r.cursor
-	for ; r.data[r.cursor] != 0; r.cursor++ {
-	}
-	// skip the 0
-	r.cursor++
-	return string(r.data[start : r.cursor-1])
-}
 
 type header struct {
 	fileCount    uint32
@@ -48,19 +17,19 @@ type header struct {
 	recordOffset uint32
 }
 
-func (r *reader) readHeader() (header, error) {
-	_ = r.readUint32()
-	version := r.readUint32()
+func readHeader(r *rawreader.T) (header, error) {
+	_ = r.Uint32()
+	version := r.Uint32()
 	if version != 3 {
 		return header{}, fmt.Errorf("unknown header version: %d", version)
 	}
 
 	return header{
-		r.readUint32(),
-		r.readUint32(),
-		r.readUint32(),
-		r.readUint32(),
-		r.readUint32(),
+		r.Uint32(),
+		r.Uint32(),
+		r.Uint32(),
+		r.Uint32(),
+		r.Uint32(),
 	}, nil
 }
 
@@ -70,21 +39,21 @@ type part struct {
 	uncompressedSize uint32
 }
 
-func (r *reader) readFileParts(header header) []part {
+func readFileParts(r *rawreader.T, header header) []part {
 	parts := make([]part, 0, header.recordCount)
-	r.cursor = uint32(header.recordOffset)
+	r.Seek(header.recordOffset)
 	for range header.recordCount {
-		p := part{r.readUint32(), r.readUint32(), r.readUint32()}
+		p := part{r.Uint32(), r.Uint32(), r.Uint32()}
 		parts = append(parts, p)
 	}
 	return parts
 }
 
-func (r *reader) readFileNames(header header) []string {
+func readFileNames(r *rawreader.T, header header) []string {
 	files := make([]string, 0, header.fileCount)
-	r.cursor = uint32(header.recordOffset + header.recordSize)
+	r.Seek(uint32(header.recordOffset + header.recordSize))
 	for range header.fileCount {
-		s := r.readCString()
+		s := r.CString()
 		files = append(files, s)
 	}
 	return files
@@ -104,17 +73,17 @@ type record struct {
 	text             string
 }
 
-func (r *reader) readRecord() record {
-	typ := r.readUint32()
-	offset := r.readUint32()
-	compressedSize := r.readUint32()
-	uncompressedSize := r.readUint32()
-	unknown := r.readUint32()
-	time := r.readUint64()
-	partCount := r.readUint32()
-	index := r.readUint32()
-	stringSize := r.readUint32()
-	stringOffset := r.readUint32()
+func readRecord(r *rawreader.T) record {
+	typ := r.Uint32()
+	offset := r.Uint32()
+	compressedSize := r.Uint32()
+	uncompressedSize := r.Uint32()
+	unknown := r.Uint32()
+	time := r.Uint64()
+	partCount := r.Uint32()
+	index := r.Uint32()
+	stringSize := r.Uint32()
+	stringOffset := r.Uint32()
 	return record{
 		typ,
 		offset,
@@ -130,11 +99,11 @@ func (r *reader) readRecord() record {
 	}
 }
 
-func (r *reader) readRecords(header header) []record {
-	r.cursor = uint32(header.recordOffset + header.recordSize + header.stringSize)
+func readRecords(r *rawreader.T, header header) []record {
+	r.Seek(uint32(header.recordOffset + header.recordSize + header.stringSize))
 	records := make([]record, 0, header.recordCount)
 	for range header.fileCount {
-		rec := r.readRecord()
+		rec := readRecord(r)
 		// NOTE: Sometimes we hit "records" with uncompressed size 0. In those
 		// cases the subsequent record has always had the same index as this one
 		// so far, and there have always been `header.recordCount` many records.
@@ -151,12 +120,12 @@ type Tag struct {
 	Name string
 }
 
-func (r *reader) uncompress(parts []part, record record) []byte {
+func uncompress(r *rawreader.T, parts []part, record record) []byte {
 	data := make([]byte, record.uncompressedSize)
 	offset := 0
 	for i := range int(record.partCount) {
 		part := parts[int(record.index)+i]
-		compressed := r.data[part.offset : part.offset+part.compressedSize]
+		compressed := r.BytesFrom(part.offset, part.compressedSize)
 		if part.compressedSize == part.uncompressedSize {
 			for j := range int(part.uncompressedSize) {
 				data[offset+j] = compressed[j]
@@ -169,7 +138,7 @@ func (r *reader) uncompress(parts []part, record record) []byte {
 	return data
 }
 
-func (r *reader) readTags(record *record) []Tag {
+func readTags(r *rawreader.T, record *record) []Tag {
 	var tags []Tag
 	lines := strings.SplitSeq(record.text, "\n")
 	for line := range lines {
@@ -189,7 +158,7 @@ func (r *reader) readTags(record *record) []Tag {
 	return tags
 }
 
-func (r *reader) readAllTags(files []string, records []record) []Tag {
+func readAllTags(r *rawreader.T, files []string, records []record) []Tag {
 	var tags []Tag
 	for i, file := range files {
 		ext := filepath.Ext(file)
@@ -197,32 +166,31 @@ func (r *reader) readAllTags(files []string, records []record) []Tag {
 			continue
 		}
 
-		ts := r.readTags(&records[i])
+		ts := readTags(r, &records[i])
 		tags = append(tags, ts...)
 	}
 	return tags
 }
 
 func ReadFile(file string) ([]Tag, error) {
-	bytes, err := os.ReadFile(file)
+	r, err := rawreader.FromFile(file)
 	if err != nil {
 		return nil, err
 	}
 
-	r := newReader(bytes)
-	header, err := r.readHeader()
+	header, err := readHeader(r)
 	if err != nil {
 		return nil, fmt.Errorf("could not read header: %+v\n", err)
 	}
 
-	parts := r.readFileParts(header)
-	files := r.readFileNames(header)
-	records := r.readRecords(header)
+	parts := readFileParts(r, header)
+	files := readFileNames(r, header)
+	records := readRecords(r, header)
 
 	for i := range records {
-		records[i].text = string(r.uncompress(parts, records[i]))
+		records[i].text = string(uncompress(r, parts, records[i]))
 	}
 
-	tags := r.readAllTags(files, records)
+	tags := readAllTags(r, files, records)
 	return tags, nil
 }
