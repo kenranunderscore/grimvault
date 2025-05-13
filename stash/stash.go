@@ -4,32 +4,36 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"os"
 	"strconv"
+
+	"github.com/kenranunderscore/grimvault/rawreader"
 )
 
 const TableLength = 256
 
 type Decoder struct {
-	data     *[]byte
-	cursor   uint32
+	reader   *rawreader.T
 	key      uint32
 	keyTable *[TableLength]uint32
 }
 
-func DecodeKey(stash []byte) uint32 {
+func (d *Decoder) Cursor() uint32 {
+	return d.reader.Cursor
+}
+
+func DecodeKey(r *rawreader.T) uint32 {
 	const XorKey uint32 = 1431655765
-	res := uint32(stash[0])
-	res |= uint32(stash[1]) << 8
-	res |= uint32(stash[2]) << 0x10
-	res |= uint32(stash[3]) << 0x18
+	res := uint32(r.Byte())
+	res |= uint32(r.Byte()) << 8
+	res |= uint32(r.Byte()) << 0x10
+	res |= uint32(r.Byte()) << 0x18
 	return res ^ XorKey
 }
 
-func ReadKeyTable(stash []byte) (uint32, [TableLength]uint32) {
+func ReadKeyTable(r *rawreader.T) (uint32, [TableLength]uint32) {
 	const Prime uint32 = 39916801
 	var res [TableLength]uint32
-	key := DecodeKey(stash)
+	key := DecodeKey(r)
 	x := key
 	for i := range TableLength {
 		x = x>>1 | x<<31
@@ -39,14 +43,14 @@ func ReadKeyTable(stash []byte) (uint32, [TableLength]uint32) {
 	return key, res
 }
 
-func NewDecoder(path string) (*Decoder, error) {
-	bytes, err := os.ReadFile(path)
+func NewDecoder(file string) (*Decoder, error) {
+	reader, err := rawreader.FromFile(file)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot create stash decoder: %w", err)
 	}
 
-	key, keyTable := ReadKeyTable(bytes)
-	return &Decoder{&bytes, 4, key, &keyTable}, nil
+	key, keyTable := ReadKeyTable(reader)
+	return &Decoder{reader, key, &keyTable}, nil
 }
 
 func (d *Decoder) DecodeEx(encoded uint32, updateKey bool) uint32 {
@@ -66,7 +70,7 @@ func (d *Decoder) Decode(encoded uint32) uint32 {
 }
 
 func (d *Decoder) ReadUintEx(updateKey bool) uint32 {
-	bytes := d.getBytes(4)
+	bytes := d.reader.Bytes(4)
 	encoded := binary.LittleEndian.Uint32(bytes)
 	return d.DecodeEx(encoded, updateKey)
 }
@@ -76,7 +80,7 @@ func (d *Decoder) ReadUint() uint32 {
 }
 
 func (d *Decoder) ReadBool() bool {
-	b := d.getBytes(1)[0]
+	b := d.reader.Byte()
 	// FIXME: consolidate with `DecodeEx`
 	n := byte(uint32(b) ^ d.key)
 	d.key ^= d.keyTable[b]
@@ -92,12 +96,12 @@ type Block struct {
 func (d *Decoder) ReadBlock() Block {
 	result := d.ReadUint()
 	length := d.ReadUintEx(false)
-	end := d.cursor + length
+	end := d.Cursor() + length
 	return Block{result, length, end}
 }
 
 func (d *Decoder) ReadBlockEnd(block Block) error {
-	if block.end != d.cursor {
+	if block.end != d.Cursor() {
 		return errors.New("unexpected cursor position when reading block end")
 	}
 
@@ -108,25 +112,19 @@ func (d *Decoder) ReadBlockEnd(block Block) error {
 	return nil
 }
 
-func (d *Decoder) getBytes(count uint32) []byte {
-	res := (*d.data)[d.cursor : d.cursor+count]
-	d.cursor += count
-	return res
-}
-
 func (d *Decoder) ReadString() (error, string) {
 	length := d.ReadUint()
 	if length == 0 {
 		return nil, ""
 	}
 
-	if d.cursor+length > uint32(len(*d.data)) {
+	if d.Cursor()+length > uint32(len(d.reader.Data)) {
 		return errors.New("too little data"), ""
 	}
 
 	// FIXME: consolidate
 	// FIXME: decodeBytes instead?
-	bytes := d.getBytes(length)
+	bytes := d.reader.Bytes(length)
 	for i := range length {
 		b := bytes[i]
 		decoded := byte(uint32(b) ^ d.key)
@@ -144,12 +142,12 @@ type StashTab struct {
 }
 
 func (d *Decoder) ReadStashTab() (error, *StashTab) {
-	fmt.Printf("   starting to read stash tab; cursor %d\n", d.cursor)
+	fmt.Printf("   starting to read stash tab; cursor %d\n", d.Cursor())
 	block := d.ReadBlock()
 	width := d.ReadUint()
 	height := d.ReadUint()
 	itemCount := d.ReadUint()
-	fmt.Printf("   got stash tab block %d with %d items, cursor %d\n", block, itemCount, d.cursor)
+	fmt.Printf("   got stash tab block %d with %d items, cursor %d\n", block, itemCount, d.Cursor())
 	fmt.Printf("       width %d,  height %d\n", width, height)
 	for range itemCount {
 		err := d.ReadItem()

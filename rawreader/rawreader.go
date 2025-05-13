@@ -9,8 +9,8 @@ import (
 
 // A read-only view on some binary data.
 type T struct {
-	data   []byte
-	cursor uint32
+	Data   []byte
+	Cursor uint32
 }
 
 // Create a new reader.
@@ -30,24 +30,31 @@ func FromFile(file string) (*T, error) {
 
 // Jump to the specified `cursor` position.
 func (reader *T) Seek(cursor uint32) {
-	reader.cursor = cursor
+	reader.Cursor = cursor
 }
 
 // Move `offset` bytes relative to the current cursor position.
 func (reader *T) Advance(offset uint32) {
-	reader.cursor += offset
+	reader.Cursor += offset
 }
 
 // From the position `start`, get a slice of `count` bytes.
 func (reader *T) BytesFrom(start uint32, count uint32) []byte {
-	bytes := reader.data[start : start+count]
-	reader.cursor += count
+	bytes := reader.Data[start : start+count]
+	reader.Cursor += count
 	return bytes
 }
 
 // Get a slice of `count` bytes from the current cursor position.
 func (reader *T) Bytes(count uint32) []byte {
-	return reader.BytesFrom(reader.cursor, count)
+	return reader.BytesFrom(reader.Cursor, count)
+}
+
+// Read a `byte` at the current position.
+func (reader *T) Byte() byte {
+	b := reader.Data[reader.Cursor]
+	reader.Advance(1)
+	return b
 }
 
 // Read a `uint16` at the current position.
@@ -86,10 +93,8 @@ func (r *T) String() string {
 // Read a C string at the current position; that is, read until encountering a
 // terminal '\0'.
 func (r *T) CString() string {
-	start := r.cursor
-	for ; r.data[r.cursor] != 0; r.cursor++ {
+	start := r.Cursor
+	for r.Byte() != 0 {
 	}
-	// skip the 0
-	r.cursor++
-	return string(r.data[start : r.cursor-1])
+	return string(r.Data[start : r.Cursor-1])
 }
