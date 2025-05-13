@@ -33,6 +33,13 @@ func Run(t *testing.T, dir string, glob string, f GoldenTestFunc) {
 	}
 
 	expectedDir := filepath.Join(dir, "expected")
+	if _, err := os.Stat(expectedDir); os.IsNotExist(err) {
+		err := os.Mkdir(expectedDir, 0755)
+		if err != nil {
+			t.Fatalf("Could not create expected dir '%s'", expectedDir)
+		}
+	}
+
 	testFiles, err := filepath.Glob(filepath.Join(dir, glob))
 	if err != nil {
 		t.Fatalf("Failed reading test files: %v", err)
