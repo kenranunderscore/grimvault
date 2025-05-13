@@ -11,17 +11,17 @@ import (
 
 const TableLength = 256
 
-type Decoder struct {
+type decoder struct {
 	reader   *rawreader.T
 	key      uint32
 	keyTable *[TableLength]uint32
 }
 
-func (d *Decoder) Cursor() uint32 {
+func (d *decoder) cursor() uint32 {
 	return d.reader.Cursor
 }
 
-func DecodeKey(r *rawreader.T) uint32 {
+func decodeKey(r *rawreader.T) uint32 {
 	const XorKey uint32 = 1431655765
 	res := uint32(r.Byte())
 	res |= uint32(r.Byte()) << 8
@@ -30,10 +30,10 @@ func DecodeKey(r *rawreader.T) uint32 {
 	return res ^ XorKey
 }
 
-func ReadKeyTable(r *rawreader.T) (uint32, [TableLength]uint32) {
+func readKeyTable(r *rawreader.T) (uint32, [TableLength]uint32) {
 	const Prime uint32 = 39916801
 	var res [TableLength]uint32
-	key := DecodeKey(r)
+	key := decodeKey(r)
 	x := key
 	for i := range TableLength {
 		x = x>>1 | x<<31
@@ -43,17 +43,17 @@ func ReadKeyTable(r *rawreader.T) (uint32, [TableLength]uint32) {
 	return key, res
 }
 
-func NewDecoder(file string) (*Decoder, error) {
+func newDecoder(file string) (*decoder, error) {
 	reader, err := rawreader.FromFile(file)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create stash decoder: %w", err)
 	}
 
-	key, keyTable := ReadKeyTable(reader)
-	return &Decoder{reader, key, &keyTable}, nil
+	key, keyTable := readKeyTable(reader)
+	return &decoder{reader, key, &keyTable}, nil
 }
 
-func (d *Decoder) DecodeEx(encoded uint32, updateKey bool) uint32 {
+func (d *decoder) decodeEx(encoded uint32, updateKey bool) uint32 {
 	n := encoded ^ d.key
 	if updateKey {
 		bytes := make([]byte, 4)
@@ -65,21 +65,21 @@ func (d *Decoder) DecodeEx(encoded uint32, updateKey bool) uint32 {
 	return n
 }
 
-func (d *Decoder) Decode(encoded uint32) uint32 {
-	return d.DecodeEx(encoded, true)
+func (d *decoder) decode(encoded uint32) uint32 {
+	return d.decodeEx(encoded, true)
 }
 
-func (d *Decoder) ReadUintEx(updateKey bool) uint32 {
+func (d *decoder) readUintEx(updateKey bool) uint32 {
 	bytes := d.reader.Bytes(4)
 	encoded := binary.LittleEndian.Uint32(bytes)
-	return d.DecodeEx(encoded, updateKey)
+	return d.decodeEx(encoded, updateKey)
 }
 
-func (d *Decoder) ReadUint() uint32 {
-	return d.ReadUintEx(true)
+func (d *decoder) readUint() uint32 {
+	return d.readUintEx(true)
 }
 
-func (d *Decoder) ReadBool() bool {
+func (d *decoder) readBool() bool {
 	b := d.reader.Byte()
 	// FIXME: consolidate with `DecodeEx`
 	n := byte(uint32(b) ^ d.key)
@@ -87,38 +87,38 @@ func (d *Decoder) ReadBool() bool {
 	return n == 1
 }
 
-type Block struct {
+type block struct {
 	result uint32
 	length uint32
 	end    uint32
 }
 
-func (d *Decoder) ReadBlock() Block {
-	result := d.ReadUint()
-	length := d.ReadUintEx(false)
-	end := d.Cursor() + length
-	return Block{result, length, end}
+func (d *decoder) readBlock() block {
+	result := d.readUint()
+	length := d.readUintEx(false)
+	end := d.cursor() + length
+	return block{result, length, end}
 }
 
-func (d *Decoder) ReadBlockEnd(block Block) error {
-	if block.end != d.Cursor() {
+func (d *decoder) readBlockEnd(block block) error {
+	if block.end != d.cursor() {
 		return errors.New("unexpected cursor position when reading block end")
 	}
 
-	res := d.ReadUintEx(false)
+	res := d.readUintEx(false)
 	if res > 0 {
 		return errors.New("block end > 0: " + strconv.FormatUint(uint64(res), 10))
 	}
 	return nil
 }
 
-func (d *Decoder) ReadString() (error, string) {
-	length := d.ReadUint()
+func (d *decoder) readString() (error, string) {
+	length := d.readUint()
 	if length == 0 {
 		return nil, ""
 	}
 
-	if d.Cursor()+length > uint32(len(d.reader.Data)) {
+	if d.cursor()+length > uint32(len(d.reader.Data)) {
 		return errors.New("too little data"), ""
 	}
 
@@ -135,64 +135,41 @@ func (d *Decoder) ReadString() (error, string) {
 	return nil, string(bytes)
 }
 
-type StashTab struct {
-	items         []Item
-	width, height uint32
-	block         Block
-}
-
 type Item struct {
-	base                 string
-	prefix               string
-	suffix               string
-	modifier             string
-	transmute            string
-	material             string
-	relicCompletionBonus string
-	enchantment          string
-	seed                 uint32
-	relicSeed            uint32
-	enchantmentSeed      uint32
-	materialCombines     uint32
-	stackSize            uint32
-	x                    uint32
-	y                    uint32
+	Base                 string
+	Prefix               string
+	Suffix               string
+	Modifier             string
+	Transmute            string
+	Material             string
+	RelicCompletionBonus string
+	Enchantment          string
+	Seed                 uint32
+	RelicSeed            uint32
+	EnchantmentSeed      uint32
+	MaterialCombines     uint32
+	StackSize            uint32
+	X                    uint32
+	Y                    uint32
 }
 
-func (d *Decoder) ReadStashTab() (error, *StashTab) {
-	block := d.ReadBlock()
-	width := d.ReadUint()
-	height := d.ReadUint()
-	itemCount := d.ReadUint()
-	items := make([]Item, 0, itemCount)
-	for range itemCount {
-		item, err := d.ReadItem()
-		if err != nil {
-			return err, nil
-		}
-		items = append(items, item)
-	}
-	d.ReadBlockEnd(block)
-	return nil, &StashTab{items, width, height, block}
-}
-
-func (d *Decoder) ReadItem() (Item, error) {
-	err, base := d.ReadString()
-	err, prefix := d.ReadString()
-	err, suffix := d.ReadString()
-	err, modifier := d.ReadString()
-	err, transmute := d.ReadString()
-	seed := d.ReadUint()
-	err, material := d.ReadString()
-	err, relicCompletionBonus := d.ReadString()
-	relicSeed := d.ReadUint()
-	err, enchantment := d.ReadString()
-	_ = d.ReadUint()
-	enchantmentSeed := d.ReadUint()
-	materialCombines := d.ReadUint()
-	stackSize := d.ReadUint()
-	xpos := d.ReadUint()
-	ypos := d.ReadUint()
+func (d *decoder) readItem() (Item, error) {
+	err, base := d.readString()
+	err, prefix := d.readString()
+	err, suffix := d.readString()
+	err, modifier := d.readString()
+	err, transmute := d.readString()
+	seed := d.readUint()
+	err, material := d.readString()
+	err, relicCompletionBonus := d.readString()
+	relicSeed := d.readUint()
+	err, enchantment := d.readString()
+	_ = d.readUint()
+	enchantmentSeed := d.readUint()
+	materialCombines := d.readUint()
+	stackSize := d.readUint()
+	xpos := d.readUint()
+	ypos := d.readUint()
 
 	if err != nil {
 		return Item{}, err
@@ -214,4 +191,78 @@ func (d *Decoder) ReadItem() (Item, error) {
 		xpos,
 		ypos,
 	}, nil
+}
+
+type StashTab struct {
+	Items  []Item
+	Width  uint32
+	Height uint32
+	Block  block
+}
+
+func (d *decoder) readStashTab() (StashTab, error) {
+	block := d.readBlock()
+	width := d.readUint()
+	height := d.readUint()
+	itemCount := d.readUint()
+	items := make([]Item, 0, itemCount)
+	for range itemCount {
+		item, err := d.readItem()
+		if err != nil {
+			return StashTab{}, fmt.Errorf("failed to read item: %v", err)
+		}
+		items = append(items, item)
+	}
+	d.readBlockEnd(block)
+	return StashTab{items, width, height, block}, nil
+}
+
+type Stash struct {
+	Tabs []StashTab
+}
+
+func ReadStash(file string) (*Stash, error) {
+	d, err := newDecoder(file)
+	if err != nil {
+		return nil, fmt.Errorf("could not open stash file '%s': %w", file, err)
+	}
+
+	if x := d.readUint(); x != 2 {
+		return nil, fmt.Errorf("expected literal 2, got %d", x)
+	}
+
+	mainBlock := d.readBlock()
+	if mainBlock.result != 18 {
+		return nil, fmt.Errorf("expected main block to start with literal 18, got %d", mainBlock.result)
+	}
+
+	version := d.readUint()
+	if zero := d.readUintEx(false); zero != 0 {
+		return nil, fmt.Errorf("expected literal 0, got %d", zero)
+	}
+
+	d.readString()
+
+	if version >= 5 {
+		// is it an expansion stash file?
+		d.readBool()
+	}
+
+	tabCount := d.readUint()
+	stash := Stash{make([]StashTab, 0, tabCount)}
+	for i := range tabCount {
+		tab, err := d.readStashTab()
+		if err != nil {
+			return &stash, fmt.Errorf("failed to read tab %d", i)
+		}
+
+		stash.Tabs = append(stash.Tabs, tab)
+	}
+
+	err = d.readBlockEnd(mainBlock)
+	if err != nil {
+		return &stash, fmt.Errorf("failed to read main block end: %w", err)
+	}
+
+	return &stash, nil
 }
