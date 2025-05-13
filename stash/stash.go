@@ -136,63 +136,82 @@ func (d *Decoder) ReadString() (error, string) {
 }
 
 type StashTab struct {
-	items         uint32
+	items         []Item
 	width, height uint32
 	block         Block
 }
 
+type Item struct {
+	base                 string
+	prefix               string
+	suffix               string
+	modifier             string
+	transmute            string
+	material             string
+	relicCompletionBonus string
+	enchantment          string
+	seed                 uint32
+	relicSeed            uint32
+	enchantmentSeed      uint32
+	materialCombines     uint32
+	stackSize            uint32
+	x                    uint32
+	y                    uint32
+}
+
 func (d *Decoder) ReadStashTab() (error, *StashTab) {
-	fmt.Printf("   starting to read stash tab; cursor %d\n", d.Cursor())
 	block := d.ReadBlock()
 	width := d.ReadUint()
 	height := d.ReadUint()
 	itemCount := d.ReadUint()
-	fmt.Printf("   got stash tab block %d with %d items, cursor %d\n", block, itemCount, d.Cursor())
-	fmt.Printf("       width %d,  height %d\n", width, height)
+	items := make([]Item, 0, itemCount)
 	for range itemCount {
-		err := d.ReadItem()
+		item, err := d.ReadItem()
 		if err != nil {
 			return err, nil
 		}
+		items = append(items, item)
 	}
 	d.ReadBlockEnd(block)
-	return nil, &StashTab{itemCount, width, height, block}
+	return nil, &StashTab{items, width, height, block}
 }
 
-func (d *Decoder) ReadItem() error {
+func (d *Decoder) ReadItem() (Item, error) {
 	err, base := d.ReadString()
-	fmt.Printf("  base: %s\n", base)
 	err, prefix := d.ReadString()
-	fmt.Printf("  prefix: %s\n", prefix)
 	err, suffix := d.ReadString()
-	fmt.Printf("  suffix: %s\n", suffix)
 	err, modifier := d.ReadString()
-	fmt.Printf("  modifier: %s\n", modifier)
 	err, transmute := d.ReadString()
-	fmt.Printf("  transmute: %s\n", transmute)
 	seed := d.ReadUint()
-	fmt.Printf("  seed: %d\n", seed)
 	err, material := d.ReadString()
-	fmt.Printf("  material: %s\n", material)
 	err, relicCompletionBonus := d.ReadString()
-	fmt.Printf("  completion bonus: %s\n", relicCompletionBonus)
 	relicSeed := d.ReadUint()
-	fmt.Printf("  relic seed: %d\n", relicSeed)
 	err, enchantment := d.ReadString()
-	fmt.Printf("  enchantment: %s\n", enchantment)
 	_ = d.ReadUint()
 	enchantmentSeed := d.ReadUint()
-	fmt.Printf("  enchantment seed: %d\n", enchantmentSeed)
 	materialCombines := d.ReadUint()
-	fmt.Printf("  material combines: %d\n", materialCombines)
 	stackSize := d.ReadUint()
-	fmt.Printf("  stack size: %d\n", stackSize)
 	xpos := d.ReadUint()
 	ypos := d.ReadUint()
-	fmt.Printf("  pos: (%d, %d)\n", xpos, ypos)
 
 	if err != nil {
-		return err
+		return Item{}, err
 	}
-	return nil
+	return Item{
+		base,
+		prefix,
+		suffix,
+		modifier,
+		transmute,
+		material,
+		relicCompletionBonus,
+		enchantment,
+		seed,
+		relicSeed,
+		enchantmentSeed,
+		materialCombines,
+		stackSize,
+		xpos,
+		ypos,
+	}, nil
 }

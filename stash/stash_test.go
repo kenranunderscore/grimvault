@@ -1,7 +1,6 @@
 package stash
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -20,13 +19,12 @@ func TestDecodeEmptyStashFile(t *testing.T) {
 	}
 
 	mainBlock := d.ReadBlock()
-	fmt.Printf("block: %d\n", mainBlock)
 	if mainBlock.result != 18 {
 		t.Errorf("block got: %d\n", mainBlock.result)
 	}
 
 	version := d.ReadUint()
-	fmt.Printf("version: %d\n", version)
+	t.Logf("version: %d\n", version)
 
 	zero := d.ReadUintEx(false)
 	if zero != 0 {
@@ -37,11 +35,11 @@ func TestDecodeEmptyStashFile(t *testing.T) {
 
 	if version >= 5 {
 		isExpansion := d.ReadBool()
-		fmt.Printf("expansion: %t\n", isExpansion)
+		t.Logf("expansion: %t\n", isExpansion)
 	}
 
 	ntabs := d.ReadUint()
-	fmt.Printf("ntabs: %d\n", ntabs)
+	t.Logf("ntabs: %d\n", ntabs)
 
 	var tabs []StashTab
 	for range ntabs {
@@ -73,13 +71,12 @@ func TestDecodeNonEmptyStashFile(t *testing.T) {
 	}
 
 	mainBlock := d.ReadBlock()
-	fmt.Printf("block: %d\n", mainBlock)
 	if mainBlock.result != 18 {
 		t.Errorf("block got: %d\n", mainBlock.result)
 	}
 
 	version := d.ReadUint()
-	fmt.Printf("version: %d\n", version)
+	t.Logf("version: %d\n", version)
 
 	zero := d.ReadUintEx(false)
 	if zero != 0 {
@@ -90,11 +87,11 @@ func TestDecodeNonEmptyStashFile(t *testing.T) {
 
 	if version >= 5 {
 		isExpansion := d.ReadBool()
-		fmt.Printf("expansion: %t\n", isExpansion)
+		t.Logf("expansion: %t\n", isExpansion)
 	}
 
 	ntabs := d.ReadUint()
-	fmt.Printf("ntabs: %d\n", ntabs)
+	t.Logf("ntabs: %d\n", ntabs)
 
 	var tabs []StashTab
 	for range ntabs {
@@ -103,6 +100,10 @@ func TestDecodeNonEmptyStashFile(t *testing.T) {
 			t.Error(err)
 		}
 		tabs = append(tabs, *tab)
+		t.Logf("  got %d items", len(tab.items))
+		for _, item := range tab.items {
+			t.Logf("    item: %v", item)
+		}
 	}
 
 	err = d.ReadBlockEnd(mainBlock)
