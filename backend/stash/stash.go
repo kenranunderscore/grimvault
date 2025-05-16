@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/kenranunderscore/grimvault/backend/rawreader"
 )
@@ -158,6 +159,25 @@ type Item struct {
 	StackSize            uint32
 	X                    uint32
 	Y                    uint32
+}
+
+func (item *Item) Pretty() string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("Base               : %s\n", item.Base))
+	b.WriteString(fmt.Sprintf("Prefix             : %s\n", item.Prefix))
+	b.WriteString(fmt.Sprintf("Suffix             : %s\n", item.Suffix))
+	b.WriteString(fmt.Sprintf("Modifier           : %s\n", item.Modifier))
+	b.WriteString(fmt.Sprintf("Transmute          : %s\n", item.Transmute))
+	b.WriteString(fmt.Sprintf("Material           : %s\n", item.Material))
+	b.WriteString(fmt.Sprintf("Relic comp. bonus  : %s\n", item.RelicCompletionBonus))
+	b.WriteString(fmt.Sprintf("Enchantment        : %s\n", item.Enchantment))
+	b.WriteString(fmt.Sprintf("Position           : (%d, %d)\n", item.X, item.Y))
+	b.WriteString(fmt.Sprintf("Seed               : %d\n", item.Seed))
+	b.WriteString(fmt.Sprintf("Relic seed         : %d\n", item.RelicSeed))
+	b.WriteString(fmt.Sprintf("Enchantment seed   : %d\n", item.EnchantmentSeed))
+	b.WriteString(fmt.Sprintf("Material combines  : %d\n", item.MaterialCombines))
+	b.WriteString(fmt.Sprintf("Stack size         : %d\n", item.StackSize))
+	return b.String()
 }
 
 func (d *decoder) readItem() (Item, error) {

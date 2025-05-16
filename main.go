@@ -3,24 +3,16 @@ package main
 import (
 	"fmt"
 
-	"github.com/kenranunderscore/grimvault/backend/arc"
+	"github.com/kenranunderscore/grimvault/backend/stash"
 )
 
 func main() {
-	// path := "./test_data/some.arz"
-	// path := "/home/void/Documents/GrimDawn/database/database.arz"
-	// path := "/home/void/Documents/GrimDawn/resources/Text_EN.arc"
-	// res, err := database.GetEntries(path)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	tags, err := arc.ReadFile("./backend/test_data/arc/some.arc")
+	st, err := stash.ReadStash("./backend/test_data/stashes/transfer.gst")
 	if err != nil {
-		panic(fmt.Errorf("could not read arc file: %v", err))
+		panic(err)
 	}
-	fmt.Printf("read arc file!, got %d tags\n", len(tags))
-	// for range res {
-	// 	// fmt.Printf("  stats: %d\n", len(x.Stats))
-	// }
-	// fmt.Printf("loaded %d entries from %s\n", len(res), path)
+	fmt.Printf("got %d items in tab\n", len(st.Tabs[2].Items))
+	for _, item := range st.Tabs[2].Items {
+		fmt.Printf("%s\n", item.Pretty())
+	}
 }
