@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/kenranunderscore/grimvault/rawreader"
+	"github.com/kenranunderscore/grimvault/backend/rawreader"
 	"github.com/pierrec/lz4"
 )
 

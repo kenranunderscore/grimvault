@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/kenranunderscore/grimvault/arc"
+	"github.com/kenranunderscore/grimvault/backend/arc"
 )
 
 func main() {
@@ -14,7 +14,7 @@ func main() {
 	// if err != nil {
 	// 	panic(err)
 	// }
-	tags, err := arc.ReadFile("./test_data/arc/some.arc")
+	tags, err := arc.ReadFile("./backend/test_data/arc/some.arc")
 	if err != nil {
 		panic(fmt.Errorf("could not read arc file: %v", err))
 	}

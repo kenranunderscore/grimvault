@@ -3,7 +3,7 @@ package arc
 import (
 	"testing"
 
-	"github.com/kenranunderscore/grimvault/golden"
+	"github.com/kenranunderscore/grimvault/backend/golden"
 )
 
 func TestReadFile(t *testing.T) {

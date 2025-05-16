@@ -3,7 +3,7 @@ package database
 import (
 	"testing"
 
-	"github.com/kenranunderscore/grimvault/golden"
+	"github.com/kenranunderscore/grimvault/backend/golden"
 )
 
 func TestAllDatabasesGolden(t *testing.T) {

@@ -3,7 +3,7 @@ package stash
 import (
 	"testing"
 
-	"github.com/kenranunderscore/grimvault/golden"
+	"github.com/kenranunderscore/grimvault/backend/golden"
 )
 
 func TestDecodeEmptyStashFile(t *testing.T) {

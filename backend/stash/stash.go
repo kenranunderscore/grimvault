@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/kenranunderscore/grimvault/rawreader"
+	"github.com/kenranunderscore/grimvault/backend/rawreader"
 )
 
 const TableLength = 256
