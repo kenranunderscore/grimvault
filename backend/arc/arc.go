@@ -25,11 +25,11 @@ func readHeader(r *rawreader.T) (header, error) {
 	}
 
 	return header{
-		r.Uint32(),
-		r.Uint32(),
-		r.Uint32(),
-		r.Uint32(),
-		r.Uint32(),
+		fileCount:    r.Uint32(),
+		recordCount:  r.Uint32(),
+		recordSize:   r.Uint32(),
+		stringSize:   r.Uint32(),
+		recordOffset: r.Uint32(),
 	}, nil
 }
 
@@ -43,7 +43,11 @@ func readFileParts(r *rawreader.T, header header) []part {
 	parts := make([]part, 0, header.recordCount)
 	r.Seek(header.recordOffset)
 	for range header.recordCount {
-		p := part{r.Uint32(), r.Uint32(), r.Uint32()}
+		p := part{
+			offset:           r.Uint32(),
+			compressedSize:   r.Uint32(),
+			uncompressedSize: r.Uint32(),
+		}
 		parts = append(parts, p)
 	}
 	return parts
@@ -74,28 +78,18 @@ type record struct {
 }
 
 func readRecord(r *rawreader.T) record {
-	typ := r.Uint32()
-	offset := r.Uint32()
-	compressedSize := r.Uint32()
-	uncompressedSize := r.Uint32()
-	unknown := r.Uint32()
-	time := r.Uint64()
-	partCount := r.Uint32()
-	index := r.Uint32()
-	stringSize := r.Uint32()
-	stringOffset := r.Uint32()
 	return record{
-		typ,
-		offset,
-		compressedSize,
-		uncompressedSize,
-		unknown,
-		time,
-		partCount,
-		index,
-		stringSize,
-		stringOffset,
-		"",
+		typ:              r.Uint32(),
+		offset:           r.Uint32(),
+		compressedSize:   r.Uint32(),
+		uncompressedSize: r.Uint32(),
+		unknown:          r.Uint32(),
+		time:             r.Uint64(),
+		partCount:        r.Uint32(),
+		index:            r.Uint32(),
+		stringSize:       r.Uint32(),
+		stringOffset:     r.Uint32(),
+		text:             "",
 	}
 }
 
@@ -149,7 +143,7 @@ func readTags(r *rawreader.T, record *record) []Tag {
 				fmt.Println("    fail: key value could not be parsed")
 				fmt.Printf("       kv == %v\n", kv)
 			} else {
-				tag := Tag{kv[0], kv[1]}
+				tag := Tag{Tag: kv[0], Name: kv[1]}
 				tags = append(tags, tag)
 			}
 		}

@@ -31,13 +31,16 @@ type record struct {
 }
 
 func readRecord(r *rawreader.T) record {
-	stringIndex := r.Uint32()
-	name := r.String()
-	offset := r.Uint32()
-	compressedSize := r.Uint32()
-	uncompressedSize := r.Uint32()
+	rec := record{
+		stringIndex:      r.Uint32(),
+		name:             r.String(),
+		offset:           r.Uint32(),
+		compressedSize:   r.Uint32(),
+		uncompressedSize: r.Uint32(),
+		data:             nil,
+	}
 	r.Advance(8)
-	return record{stringIndex, name, offset, compressedSize, uncompressedSize, nil}
+	return rec
 }
 
 func readRecords(r *rawreader.T, start uint32, count uint32) []record {
@@ -92,26 +95,26 @@ func (rec *record) toEntry(strings stringTable) (Entry, error) {
 			case 1:
 				f := r.Float32()
 				if math.Abs(float64(f)) > 0.01 {
-					stats = append(stats, Stat{name, f})
+					stats = append(stats, Stat{Name: name, Value: f})
 				}
 			case 2:
 				index := r.Uint32()
 				if int(index) < len(strings) {
 					value := strings[int(index)]
 					if value != "" {
-						stats = append(stats, Stat{name, value})
+						stats = append(stats, Stat{Name: name, Value: value})
 					}
 				}
 			default:
 				value := r.Uint32()
 				if value > 0 {
-					stats = append(stats, Stat{name, value})
+					stats = append(stats, Stat{Name: name, Value: value})
 				}
 			}
 		}
 		offset += 8 + 4*uint32(entryCount)
 	}
-	return Entry{key, stats}, nil
+	return Entry{Key: key, Stats: stats}, nil
 }
 
 func GetEntries(file string) ([]Entry, error) {

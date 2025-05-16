@@ -50,7 +50,11 @@ func newDecoder(file string) (*decoder, error) {
 	}
 
 	key, keyTable := readKeyTable(reader)
-	return &decoder{reader, key, &keyTable}, nil
+	return &decoder{
+		reader:   reader,
+		key:      key,
+		keyTable: &keyTable,
+	}, nil
 }
 
 func (d *decoder) decodeEx(encoded uint32, updateKey bool) uint32 {
@@ -96,8 +100,11 @@ type block struct {
 func (d *decoder) readBlock() block {
 	result := d.readUint()
 	length := d.readUintEx(false)
-	end := d.cursor() + length
-	return block{result, length, end}
+	return block{
+		result: result,
+		length: length,
+		end:    d.cursor() + length,
+	}
 }
 
 func (d *decoder) readBlockEnd(block block) error {
@@ -175,21 +182,21 @@ func (d *decoder) readItem() (Item, error) {
 		return Item{}, err
 	}
 	return Item{
-		base,
-		prefix,
-		suffix,
-		modifier,
-		transmute,
-		material,
-		relicCompletionBonus,
-		enchantment,
-		seed,
-		relicSeed,
-		enchantmentSeed,
-		materialCombines,
-		stackSize,
-		xpos,
-		ypos,
+		Base:                 base,
+		Prefix:               prefix,
+		Suffix:               suffix,
+		Modifier:             modifier,
+		Transmute:            transmute,
+		Material:             material,
+		RelicCompletionBonus: relicCompletionBonus,
+		Enchantment:          enchantment,
+		Seed:                 seed,
+		RelicSeed:            relicSeed,
+		EnchantmentSeed:      enchantmentSeed,
+		MaterialCombines:     materialCombines,
+		StackSize:            stackSize,
+		X:                    xpos,
+		Y:                    ypos,
 	}, nil
 }
 
@@ -214,7 +221,12 @@ func (d *decoder) readStashTab() (StashTab, error) {
 		items = append(items, item)
 	}
 	d.readBlockEnd(block)
-	return StashTab{items, width, height, block}, nil
+	return StashTab{
+		Items:  items,
+		Width:  width,
+		Height: height,
+		Block:  block,
+	}, nil
 }
 
 type Stash struct {
@@ -249,7 +261,7 @@ func ReadStash(file string) (*Stash, error) {
 	}
 
 	tabCount := d.readUint()
-	stash := Stash{make([]StashTab, 0, tabCount)}
+	stash := Stash{Tabs: make([]StashTab, 0, tabCount)}
 	for i := range tabCount {
 		tab, err := d.readStashTab()
 		if err != nil {
